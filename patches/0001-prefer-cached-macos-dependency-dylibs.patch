@@ -1,0 +1,16 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6fa3221..ab0ad78 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -137,6 +137,11 @@ if(APPLE)
+         endfunction()
+ 
+         foreach(dependency IN LISTS ${PROJECT}_MACOS_DEPENDENCIES)
++            # reVC Builder: a dylib passed with -D wins over the MacPorts/Homebrew search,
++            # whose normal variable would otherwise hide the cache entry.
++            if(DEFINED CACHE{${PROJECT}_MACOS_${dependency}_DYLIBS})
++                continue()
++            endif()
+             reVC_macos_dependency_dylib(
+                 ${PROJECT}_MACOS_${dependency}_DYLIBS
+                 ${${PROJECT}_MACOS_${dependency}_FORMULA}

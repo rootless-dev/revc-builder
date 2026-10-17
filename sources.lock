@@ -1,0 +1,51 @@
+# Pinned sources for the reVC build (spec section 5).
+#
+# Git sources: mirrors in priority order. A URL may be listed only if the pinned commit is
+# reachable from one of its branches (mirror rule); `pytest -m network` checks every one.
+# Archive sources: every URL must serve the same file, whose SHA-256 is recorded here.
+# SHA-256 values were computed from the actual downloads on 2026-10-17.
+
+[sources.revc]
+type = "git"
+# Commit a26fff4 on branch "miami" (2026-10-02). The two extra mirrors are GitHub forks
+# whose "miami" branch points at the same commit. They are in the same GitHub fork
+# network as the primary, so they do not protect against a takedown of that network.
+urls = [
+    "https://github.com/mrxenginner/reVC.git",
+    "https://github.com/QuantumByteStudios/reVC.git",
+    "https://github.com/n-wolpx/reVC.git",
+]
+commit = "a26fff4af555a8a425ac9f17d1dd718d00d1f942"
+
+[sources.librw]
+type = "git"
+# The vendor/librw submodule. The commit must equal the gitlink the reVC pin records (F6).
+# The pinned commit is on the "master" branch of every mirror listed.
+path = "vendor/librw"
+urls = [
+    "https://github.com/mrxenginner/librw.git",
+    "https://github.com/etkramer/librw.git",
+    "https://github.com/mefury/librw.git",
+]
+commit = "0ad67ee226ea51beb3f465cb8857195e4db16029"
+
+[sources.glfw]
+type = "archive"
+version = "3.5.1"
+urls = ["https://github.com/glfw/glfw/releases/download/3.5.1/glfw-3.5.1.zip"]
+sha256 = "ea79bc5feffc254c87291980c2d0bce9acebb68c4983b79f961dcd2cb8a611a0"
+
+[sources.openal-soft]
+type = "archive"
+version = "1.25.2"
+urls = ["https://openal-soft.org/openal-releases/openal-soft-1.25.2.tar.bz2"]
+sha256 = "1dbaac44e7579d5bc8847ca8db4b2e8b9fd3961041f35ee20def4958301e1089"
+
+[sources.mpg123]
+type = "archive"
+version = "1.33.7"
+urls = [
+    "https://www.mpg123.de/download/mpg123-1.33.7.tar.bz2",
+    "https://downloads.sourceforge.net/project/mpg123/mpg123/1.33.7/mpg123-1.33.7.tar.bz2",
+]
+sha256 = "31d0e35a4ca567ec9b5ebda6c3062bb4435d6d3eacd6ef0d95cadd7854dc03ee"

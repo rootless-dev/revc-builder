@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "revc-builder"
+version = "0.1.0"
+description = "Build kit that compiles a native macOS reVC app from game files the user owns"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # CMake 3.24 or later: CMAKE_IGNORE_PREFIX_PATH needs 3.23 and `cmake --fresh` (stage 4) needs 3.24.
+    "cmake==4.4.4",
+    "ninja==1.13.2",
+]
+
+[project.optional-dependencies]
+# PySide6-Essentials is the QtCore/QtGui/QtWidgets part of PySide6. 6.9.x is the newest
+# series whose binaries all declare macOS 12 or earlier; from 6.10 on, the PySide6 and
+# shiboken6 libraries declare macOS 15.0 despite the wheels' macosx_13_0 tag.
+gui = ["PySide6-Essentials==6.9.3"]
+package = ["pyinstaller==6.22.3"]
+dev = [
+    "pytest==9.1.1",
+    "pytest-qt==4.5.0",
+]
+
+[project.scripts]
+vcbuilder = "vcbuilder.__main__:main"
+
+[project.gui-scripts]
+revc-builder = "gui.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vcbuilder", "gui"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"sources.lock" = "vcbuilder/data/sources.lock"
+"patches" = "vcbuilder/data/patches"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: needs internet access; run on demand with `pytest -m network`",
+]
+addopts = "-m 'not network'"

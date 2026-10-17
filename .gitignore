@@ -1,0 +1,29 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build output
+build/
+dist/
+*.zip
+*.dmg
+
+# Never commit game data, reVC source or prebuilt reVC binaries
+reVC/
+reVC.app/
+vendor/
+gamefiles/
+*.img
+*.dir
+*.adf
+
+# macOS
+.DS_Store

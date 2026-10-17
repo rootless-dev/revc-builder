@@ -1,0 +1,146 @@
+# Files a game folder must contain (spec section 6.2), relative to the game root.
+# Compared case-insensitively; one path per line; "#" starts a comment.
+#
+# Derived on 2026-10-17 for reVC a26fff4 by tracing every file the built reVC opened
+# (open/fopen interposer) while it started up and began a new game against the
+# validation copy, plus the loading-screen textures that main.cpp picks by name
+# (txd/loadsc0-12, splash1-3) and the intro textures (txd/intro1-4).
+# Left out on purpose:
+#   - files reVC generates in the game folder: models/txd.img, models/txd.dir,
+#     audio/sound.cache, data/CAPS.DAT;
+#   - files reVC ships itself in reVC.app/Contents/Resources/gamefiles (text/*.gxt,
+#     models/generic.txd, models/particle.txd, ...), which take precedence (spec F1);
+#   - the radio stations (audio/*.adf) and the streamed MP3s (cutscene and ambience
+#     audio, audio/*.mp3): reVC only warns when they are missing, and the validation
+#     copy lacks them, so their names could not be confirmed against a real install.
+anim/cuts.dir
+anim/cuts.img
+anim/ped.ifp
+Audio/intro1.wav
+Audio/intro2.wav
+Audio/intro3.wav
+Audio/intro4.wav
+Audio/sfx.RAW
+Audio/sfx.SDT
+data/carcols.dat
+data/default.dat
+data/default.ide
+data/fistfite.dat
+data/gta_vc.dat
+data/handling.cfg
+data/info.zon
+data/main.scm
+data/map.zon
+data/maps/airport/airport.ide
+data/maps/airport/airport.ipl
+data/maps/airportN/airportN.ide
+data/maps/airportN/airportN.ipl
+data/maps/bank/bank.ide
+data/maps/bank/bank.ipl
+data/maps/bridge/bridge.ide
+data/maps/bridge/bridge.ipl
+data/maps/cisland/cisland.ide
+data/maps/cisland/cisland.ipl
+data/maps/club/club.ide
+data/maps/club/CLUB.ipl
+data/maps/concerth/concerth.ide
+data/maps/concerth/concerth.ipl
+data/maps/cull.ipl
+data/maps/docks/docks.ide
+data/maps/docks/docks.ipl
+data/maps/downtown/downtown.ide
+data/maps/downtown/downtown.ipl
+data/maps/downtows/downtows.ide
+data/maps/downtows/downtows.ipl
+data/maps/generic.ide
+data/maps/golf/golf.ide
+data/maps/golf/golf.ipl
+data/maps/haiti/haiti.ide
+data/maps/haiti/haiti.ipl
+data/maps/haitiN/haitiN.ide
+data/maps/haitiN/haitin.ipl
+data/maps/hotel/hotel.ide
+data/maps/hotel/hotel.ipl
+data/maps/islandsf/islandsf.ide
+data/maps/islandsf/islandsf.ipl
+data/maps/lawyers/lawyers.ide
+data/maps/lawyers/lawyers.ipl
+data/maps/littleha/littleha.ide
+data/maps/littleha/littleha.ipl
+data/maps/mall/mall.ide
+data/maps/mall/mall.ipl
+data/maps/mansion/mansion.ide
+data/maps/mansion/mansion.ipl
+data/maps/nbeach/nbeach.ide
+data/maps/nbeach/nbeach.ipl
+data/maps/nbeachbt/nbeachbt.ide
+data/maps/nbeachbt/nbeachbt.ipl
+data/maps/nbeachw/nbeachw.ide
+data/maps/nbeachw/nbeachw.ipl
+data/maps/oceandn/oceandN.ide
+data/maps/oceandn/oceandN.ipl
+data/maps/oceandrv/oceandrv.ide
+data/maps/oceandrv/oceandrv.ipl
+data/maps/paths.ipl
+data/maps/stadint/stadint.ide
+data/maps/stadint/stadint.ipl
+data/maps/starisl/starisl.ide
+data/maps/starisl/starisl.ipl
+data/maps/stripclb/stripclb.ide
+data/maps/stripclb/stripclb.ipl
+data/maps/washintn/washintn.ide
+data/maps/washintn/washintn.ipl
+data/maps/washints/washints.ide
+data/maps/washints/washints.ipl
+data/maps/yacht/yacht.ide
+data/maps/yacht/yacht.ipl
+data/navig.zon
+data/object.dat
+data/occlu.ipl
+data/particle.cfg
+data/paths/flight.dat
+data/paths/flight2.dat
+data/paths/flight3.dat
+data/paths/spath0.dat
+data/ped.dat
+data/pedgrp.dat
+data/pedstats.dat
+data/surface.dat
+data/timecyc.dat
+data/WATERPRO.DAT
+data/weapon.dat
+models/coll/generic.col
+models/coll/peds.col
+models/coll/vehicles.col
+models/coll/weapons.col
+models/fonts.txd
+models/fronten1.txd
+models/fronten2.txd
+models/generic/air_vlo.DFF
+models/generic/arrow.DFF
+models/generic/wheels.DFF
+models/generic/wheels.TXD
+models/generic/zonecylb.DFF
+models/gta3.dir
+models/gta3.img
+models/hud.txd
+txd/intro1.txd
+txd/intro2.txd
+txd/INTRO3.TXD
+txd/intro4.txd
+txd/LOADSC0.TXD
+txd/LOADSC1.TXD
+txd/LOADSC10.TXD
+txd/LOADSC11.TXD
+txd/LOADSC12.TXD
+txd/LOADSC2.TXD
+txd/LOADSC3.TXD
+txd/LOADSC4.TXD
+txd/LOADSC5.TXD
+txd/LOADSC6.TXD
+txd/LOADSC7.TXD
+txd/LOADSC8.TXD
+txd/LOADSC9.TXD
+txd/SPLASH1.TXD
+txd/SPLASH2.TXD
+txd/SPLASH3.TXD
