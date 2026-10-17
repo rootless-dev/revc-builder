@@ -197,67 +197,82 @@
 <context>
     <name>GameFilesPage</name>
     <message>
-        <location filename="../pages/game_files.py" line="75"/>
+        <location filename="../pages/game_files.py" line="76"/>
         <source>Game files</source>
         <translation>Arquivos do jogo</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="79"/>
-        <source>Choose the folder of your GTA Vice City installation: the one that contains the data and models folders.</source>
-        <translation>Escolha a pasta da sua instalação do GTA Vice City: a que contém as pastas data e models.</translation>
+        <location filename="../pages/game_files.py" line="80"/>
+        <source>Choose the folder where GTA Vice City is installed: the one that contains the data and models folders. Not the installer or the downloaded archive.</source>
+        <translation>Escolha a pasta onde o GTA Vice City está instalado: a que contém as pastas data e models. Não o instalador nem o arquivo baixado.</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="82"/>
+        <location filename="../pages/game_files.py" line="83"/>
         <source>Choose folder…</source>
         <translation>Escolher pasta…</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="88"/>
+        <location filename="../pages/game_files.py" line="86"/>
+        <source>Use the game already installed</source>
+        <translation>Usar o jogo já instalado</translation>
+    </message>
+    <message>
+        <location filename="../pages/game_files.py" line="89"/>
+        <source>The copy of the game made by an earlier build. Nothing is copied again.</source>
+        <translation>A cópia do jogo feita por um build anterior. Nada é copiado de novo.</translation>
+    </message>
+    <message>
+        <location filename="../pages/game_files.py" line="95"/>
         <source>…or drag the game folder here</source>
         <translation>…ou arraste a pasta do jogo para cá</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="92"/>
+        <location filename="../pages/game_files.py" line="99"/>
         <source>Steam installs found on this Mac:</source>
         <translation>Instalações da Steam encontradas neste Mac:</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="107"/>
+        <location filename="../pages/game_files.py" line="114"/>
         <source>Back</source>
         <translation>Voltar</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="111"/>
+        <location filename="../pages/game_files.py" line="118"/>
         <source>Continue</source>
         <translation>Continuar</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="131"/>
+        <location filename="../pages/game_files.py" line="152"/>
         <source>Choose the game folder</source>
         <translation>Escolha a pasta do jogo</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="148"/>
+        <location filename="../pages/game_files.py" line="169"/>
         <source>✓ All required game files are present.</source>
         <translation>✓ Todos os arquivos necessários do jogo estão presentes.</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="153"/>
+        <location filename="../pages/game_files.py" line="174"/>
         <source>This folder is used by the Builder itself. Choose the original game folder.</source>
         <translation>Esta pasta é usada pelo próprio Builder. Escolha a pasta original do jogo.</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="158"/>
+        <location filename="../pages/game_files.py" line="180"/>
+        <source>This looks like a game installer, not an installed game. Install the game first, then choose the folder where it was installed.</source>
+        <translation>Isto parece um instalador do jogo, não o jogo instalado. Instale o jogo primeiro e depois escolha a pasta onde ele foi instalado.</translation>
+    </message>
+    <message>
+        <location filename="../pages/game_files.py" line="185"/>
         <source>This is not a game folder. Choose the folder that contains the data and models folders.</source>
         <translation>Esta não é uma pasta do jogo. Escolha a pasta que contém as pastas data e models.</translation>
     </message>
     <message>
-        <location filename="../pages/game_files.py" line="163"/>
+        <location filename="../pages/game_files.py" line="190"/>
         <source>The game folder is incomplete. Missing files:</source>
         <translation>A pasta do jogo está incompleta. Arquivos faltando:</translation>
     </message>
     <message numerus="yes">
-        <location filename="../pages/game_files.py" line="165"/>
+        <location filename="../pages/game_files.py" line="192"/>
         <source>…and %n more (see the log).</source>
         <translation>
             <numerusform>…e mais %n (veja o log).</numerusform>
@@ -298,7 +313,7 @@
         <translation>Pronto</translation>
     </message>
     <message>
-        <location filename="../app.py" line="239"/>
+        <location filename="../app.py" line="240"/>
         <source>This operating system is not supported yet. reVC Builder currently runs on macOS only.</source>
         <translation>Este sistema operacional ainda não é suportado. Por enquanto, o reVC Builder roda somente no macOS.</translation>
     </message>

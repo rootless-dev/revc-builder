@@ -145,11 +145,12 @@ class MainWindow(QMainWindow):
         self.steps_label.setText("  ·  ".join(parts))
 
     def _show_game_files(self) -> None:
-        self.game_files.refresh_steam_installs()
+        self.game_files.refresh_sources()
         self._show(self.game_files)
 
     def _folder_accepted(self, folder: Path) -> None:
         self.folder = folder
+        self.engine.remember_game_folder(folder)
         self._show(self.tools)
         self.tools.check()
 

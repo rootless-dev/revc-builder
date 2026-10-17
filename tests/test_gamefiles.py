@@ -137,3 +137,26 @@ def test_steam_detection_ignores_files_named_like_the_game(tmp_path):
     path.parent.mkdir(parents=True)
     path.write_text("not a folder")
     assert detect_steam_installs(tmp_path) == []
+
+
+def test_an_installer_folder_is_reported_as_an_installer(tmp_path):
+    folder = make_tree(tmp_path / "download", ["setup.exe", "data-1.0.bin", "Readme.txt"])
+    result = validate_game_folder(folder, required=REQUIRED)
+    assert result.status is ValidationStatus.INSTALLER
+    assert not result.is_valid
+
+
+def test_installer_extensions_are_matched_case_insensitively(tmp_path):
+    folder = make_tree(tmp_path / "download", ["DATA-1.CATALYST"])
+    assert validate_game_folder(folder, required=REQUIRED).status is ValidationStatus.INSTALLER
+
+
+def test_an_empty_or_unrelated_folder_is_not_an_installer(tmp_path):
+    folder = make_tree(tmp_path / "photos", ["holiday.jpg"])
+    assert validate_game_folder(folder, required=REQUIRED).status is ValidationStatus.NOT_GAME_FOLDER
+
+
+def test_a_game_folder_with_an_exe_is_judged_by_its_game_files(tmp_path):
+    # An installed game also has gta-vc.exe at the top; the marker files decide.
+    folder = make_tree(tmp_path / "game", ["gta-vc.exe", "data/gta_vc.dat"])
+    assert validate_game_folder(folder, required=REQUIRED).status is ValidationStatus.INCOMPLETE

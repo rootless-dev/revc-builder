@@ -70,18 +70,25 @@ class GameFilesPage(QWidget):
         super().__init__(parent)
         self.engine = engine
         self.folder: Path | None = None
+        self.installed_game: Path | None = None
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
         layout.addWidget(label(self.tr("Game files"), "Heading"))
         layout.addWidget(label(self.tr(
-            "Choose the folder of your GTA Vice City installation: the one that contains the "
-            "data and models folders."
+            "Choose the folder where GTA Vice City is installed: the one that contains the "
+            "data and models folders. Not the installer or the downloaded archive."
         )))
 
         row = QHBoxLayout()
         self.choose_button = QPushButton(self.tr("Choose folder…"))
         self.choose_button.clicked.connect(self._open_dialog)
         row.addWidget(self.choose_button)
+        self.installed_button = QPushButton(self.tr("Use the game already installed"))
+        self.installed_button.setToolTip(self.tr(
+            "The copy of the game made by an earlier build. Nothing is copied again."
+        ))
+        self.installed_button.clicked.connect(self._installed_chosen)
+        row.addWidget(self.installed_button)
         row.addStretch(1)
         layout.addLayout(row)
 
@@ -114,6 +121,20 @@ class GameFilesPage(QWidget):
         self.next_button.clicked.connect(self._continue)
         buttons.addWidget(self.next_button)
         layout.addLayout(buttons)
+
+    def refresh_sources(self) -> None:
+        """Refresh the offered sources and, the first time, pick the folder used last time."""
+        self.refresh_steam_installs()
+        self.installed_game = self.engine.installed_game_folder()
+        self.installed_button.setVisible(self.installed_game is not None)
+        if self.folder is None:
+            remembered = self.engine.remembered_game_folder()
+            if remembered is not None:
+                self.choose_folder(remembered)
+
+    def _installed_chosen(self) -> None:
+        if self.installed_game is not None:
+            self.choose_folder(self.installed_game)
 
     def refresh_steam_installs(self) -> None:
         self.steam_list.clear()
@@ -150,6 +171,12 @@ class GameFilesPage(QWidget):
             self.result_label.setObjectName("Bad")
             self.result_label.setText(self.tr(
                 "This folder is used by the Builder itself. Choose the original game folder."
+            ))
+        elif result.status is ValidationStatus.INSTALLER:
+            self.result_label.setObjectName("Bad")
+            self.result_label.setText(self.tr(
+                "This looks like a game installer, not an installed game. Install the game "
+                "first, then choose the folder where it was installed."
             ))
         elif result.status is ValidationStatus.NOT_GAME_FOLDER:
             self.result_label.setObjectName("Bad")

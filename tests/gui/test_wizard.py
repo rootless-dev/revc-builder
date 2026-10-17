@@ -42,6 +42,9 @@ class FakeEngine:
         self.builds = []
         self.installed_app = None
         self.cancelled = False
+        self.remembered = None
+        self.installed_game = None
+        self.remembered_folders = []
 
     def _respond(self, argv):
         if argv[:2] == ("/usr/bin/xcode-select", "-p"):
@@ -65,6 +68,15 @@ class FakeEngine:
 
     def steam_installs(self):
         return []
+
+    def remembered_game_folder(self):
+        return self.remembered
+
+    def remember_game_folder(self, folder):
+        self.remembered_folders.append(Path(folder))
+
+    def installed_game_folder(self):
+        return self.installed_game
 
     def check_tools(self):
         return MACOS.check_tools(self.runner)
@@ -242,3 +254,42 @@ def test_an_engine_crash_still_ends_on_the_error_page(qtbot, tmp_path, game_fold
     qtbot.mouseClick(window.tools.next_button, Qt.LeftButton)
     qtbot.waitUntil(lambda: window.current_page() is window.error, timeout=5000)
     assert "Something went wrong" in window.error.message_label.text()
+
+
+def test_an_installer_folder_explains_that_the_installed_game_is_needed(qtbot, tmp_path):
+    window = _window(qtbot, FakeEngine(tmp_path))
+    qtbot.mouseClick(window.welcome.start_button, Qt.LeftButton)
+    window.game_files.choose_folder(make_tree(tmp_path / "download", ["setup.exe", "data-1.bin"]))
+    assert "installer" in window.game_files.result_label.text()
+    assert not window.game_files.next_button.isEnabled()
+
+
+def test_the_remembered_folder_is_chosen_when_the_page_opens(qtbot, tmp_path, game_folder):
+    engine = FakeEngine(tmp_path)
+    engine.remembered = game_folder
+    window = _window(qtbot, engine)
+    qtbot.mouseClick(window.welcome.start_button, Qt.LeftButton)
+    assert window.game_files.folder == game_folder
+    assert window.game_files.next_button.isEnabled()
+
+
+def test_continuing_remembers_the_folder(qtbot, tmp_path, game_folder):
+    engine = FakeEngine(tmp_path)
+    window = _window(qtbot, engine)
+    _go_to_tools(qtbot, window, game_folder)
+    assert engine.remembered_folders == [game_folder]
+
+
+def test_the_installed_copy_is_offered_only_when_it_exists(qtbot, tmp_path, game_folder):
+    engine = FakeEngine(tmp_path)
+    window = _window(qtbot, engine)
+    qtbot.mouseClick(window.welcome.start_button, Qt.LeftButton)
+    assert not window.game_files.installed_button.isVisible()
+
+    engine.installed_game = make_tree(tmp_path / "builder" / "game", ["data/gta_vc.dat", "models/gta3.img"])
+    qtbot.mouseClick(window.game_files.back_button, Qt.LeftButton)
+    qtbot.mouseClick(window.welcome.start_button, Qt.LeftButton)
+    assert window.game_files.installed_button.isVisible()
+    qtbot.mouseClick(window.game_files.installed_button, Qt.LeftButton)
+    assert window.game_files.folder == engine.installed_game
+    assert window.game_files.next_button.isEnabled()

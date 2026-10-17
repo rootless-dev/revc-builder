@@ -8,6 +8,15 @@ installs `reVC.app`. You don't need to open the Terminal.
 The game renders through librw's OpenGL 3 backend. It runs natively on Apple silicon and
 on Intel Macs (Intel is expected to work but is not tested).
 
+## Screenshots
+
+reVC built by reVC Builder, running natively on an Apple M3 Pro:
+
+| | |
+|---|---|
+| ![Main menu](docs/screenshots/main-menu.jpg) | ![Opening cutscene](docs/screenshots/cutscene.jpg) |
+| ![First mission](docs/screenshots/first-mission.jpg) | ![Ocean Drive](docs/screenshots/ocean-drive.jpg) |
+
 ## Legal note
 
 - **You must own the game.** reVC Builder contains no game files, and it never downloads,
@@ -16,8 +25,10 @@ on Intel Macs (Intel is expected to work but is not tested).
 - This repository contains **no reVC source code and no prebuilt reVC binaries**. The
   Builder downloads the source at build time from pinned mirrors (`sources.lock`) and
   checks that it is exactly the pinned version before using it.
-- Nothing from Rockstar Games or Take-Two Interactive is included: no logos, artwork,
-  screenshots or fonts. The Builder's artwork is original, and its fonts (Monoton and
+- The Builder app includes nothing from Rockstar Games or Take-Two Interactive: no logos,
+  artwork, screenshots or fonts. The only game imagery in this repository is the
+  screenshots in `docs/screenshots/`, which show the game running and are not part of the
+  app. The Builder's artwork is original, and its fonts (Monoton and
   Audiowide) are under the SIL Open Font License; their licence files are in
   `gui/style/fonts/`.
 - reVC is a community reverse-engineering project and is not affiliated with or endorsed
@@ -27,8 +38,8 @@ on Intel Macs (Intel is expected to work but is not tested).
 
 - A Mac with macOS 13 (Ventura) or later.
 - The folder of an installed PC copy of GTA Vice City: the folder that contains the `data`
-  and `models` folders. A Steam copy installed in CrossOver or Whisky is found
-  automatically.
+  and `models` folders. Not the installer or the downloaded archive — install the game
+  first. A Steam copy installed in CrossOver or Whisky is found automatically.
 - An internet connection and about 500 MB of free space, plus the size of the game.
 - Apple's Command Line Tools. If they are missing, the Builder asks macOS to install them
   (a standard Apple window; it is free).
@@ -42,7 +53,10 @@ on Intel Macs (Intel is expected to work but is not tested).
 4. Follow the wizard:
    - **Game files**: click **Choose folder…**, drag the game folder onto the window, or
      pick a detected Steam install. The Builder checks the folder immediately and tells
-     you if it is not a game folder or if files are missing.
+     you if it is not a game folder, if it looks like an installer, or if files are
+     missing. Next time, the Builder starts with the folder you chose; after a first build,
+     **Use the game already installed** rebuilds from the Builder's own copy, so the
+     original folder is no longer needed.
    - **Tools**: if the Command Line Tools are missing, click **Install** and follow
      Apple's window. The page notices by itself when the installation finishes; then click
      **Build the game**.
@@ -141,6 +155,7 @@ installed app still reads the real `~/Library/Application Support/reVC/reVC.ini`
 | `patches/` | Patches applied on top of reVC, in file-name order. |
 | `vcbuilder/data/required_files.txt` | Files a game folder must contain. |
 | `packaging/` | PyInstaller spec, icon and `build_app.sh`. |
+| `docs/screenshots/` | Screenshots of the game running, for this README. |
 | `docs/superpowers/specs/` | The design spec. |
 
 ### Tests

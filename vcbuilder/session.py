@@ -11,9 +11,16 @@ from pathlib import Path
 
 from vcbuilder.errors import BuildError, LockError
 from vcbuilder.events import Emit, Event, StageFailed
-from vcbuilder.gamefiles import ValidationResult, detect_steam_installs, validate_game_folder
+from vcbuilder.gamefiles import (
+    MARKER_FILES,
+    ValidationResult,
+    detect_steam_installs,
+    resolve_case_insensitive,
+    validate_game_folder,
+)
 from vcbuilder import platform as platforms
 from vcbuilder.platform.base import Platform, ToolsStatus
+from vcbuilder.preferences import Preferences
 from vcbuilder.pipeline import BuildContext, Pipeline, PipelineResult, default_stages, ninja_progress
 from vcbuilder.resources import lock_path, patch_files
 from vcbuilder.runner import BuildLog, CancelToken, CommandRunner
@@ -71,6 +78,21 @@ class BuildSession:
         for missing in result.missing:
             self.log.note(f"  missing: {missing}")
         return result
+
+    def remembered_game_folder(self) -> Path | None:
+        return Preferences(self.locations.builder_data).last_game_folder()
+
+    def remember_game_folder(self, folder: Path) -> None:
+        Preferences(self.locations.builder_data).remember_game_folder(folder)
+
+    def installed_game_folder(self) -> Path | None:
+        """The Builder's copy of the game from an earlier build, when it holds the game.
+
+        Choosing it rebuilds without copying anything (spec section 6.3, step 1)."""
+        game = self.locations.game_data
+        if all(resolve_case_insensitive(game, marker) is not None for marker in MARKER_FILES):
+            return game
+        return None
 
     def steam_installs(self) -> list[Path]:
         return detect_steam_installs(self.platform.steam_search_roots(self.locations.home))

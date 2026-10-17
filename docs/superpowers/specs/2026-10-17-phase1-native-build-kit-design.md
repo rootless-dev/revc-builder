@@ -123,6 +123,7 @@ vice-city-macos/
 │   ├── errors.py              # user-facing errors, each with a stable code
 │   ├── runner.py              # subprocesses with streamed output, cancellation, build log
 │   ├── paths.py               # Locations: the folders of §6.3 (the platform picks the base folders)
+│   ├── preferences.py         # remembered game folder (§7 page 2)
 │   ├── resources.py           # locates sources.lock, patches/ and data/ (source tree or bundle)
 │   ├── gamefiles.py           # validate a game folder; scan Steam libraries the platform names
 │   ├── toolchain.py           # locate the bundled cmake and ninja
@@ -299,8 +300,14 @@ copy is open (§12).
 The result shown to the user is one of:
 
 - **Valid** — every required file is present.
-- **Not a game folder** — neither `data/gta_vc.dat` nor `models/gta3.img` is present.
-  The message suggests choosing the folder that contains `data` and `models`.
+- **Installer** — neither `data/gta_vc.dat` nor `models/gta3.img` is present, and the
+  folder directly contains a file with an installer or archive extension (`.exe`, `.msi`,
+  `.bin`, `.cab`, `.iso`, `.rar`, `.zip`, `.7z`, `.arc`, `.catalyst`). The message says it
+  looks like an installer and asks the user to install the game first and choose the
+  installed folder.
+- **Not a game folder** — neither marker file is present and the folder does not look
+  like an installer. The message suggests choosing the folder that contains `data` and
+  `models`.
 - **Incomplete** — any other case with missing required files; the first ten are listed,
   and the full list is in the log.
 - **Used by the Builder** — the folder overlaps the Builder's own data directory (§6.3
@@ -380,7 +387,12 @@ A single-window wizard. Each page maps to pipeline stages (§8).
 1. **Welcome** — what the tool does, and that the user must own the game files.
 2. **Game files** — "Choose folder…" button, drop area, and a list of detected Steam
    installs (§6.1). Validation runs as soon as a source is chosen; the result is shown
-   inline (§6.2).
+   inline (§6.2). The text says explicitly that the installed game is needed, not the
+   installer or the downloaded archive. When the user continues, the folder is saved in
+   `preferences.json` in the Builder data directory; when the page opens with no folder
+   chosen yet, the saved folder is chosen again if it still exists. When the game data
+   directory from an earlier build holds both marker files, a "Use the game already
+   installed" button chooses it, which rebuilds without copying (§6.3 step 1).
 3. **Tools** — checks for the Command Line Tools with `xcode-select -p`. When it fails,
    an "Install" button runs `xcode-select --install`, which shows Apple's dialog, and the
    page polls `xcode-select -p` every 5 s until it succeeds or the user cancels. Only

@@ -16,9 +16,17 @@ MARKER_FILES = ("data/gta_vc.dat", "models/gta3.img")
 #: How many missing files the user sees; the full list goes to the log.
 SHOWN_MISSING = 10
 
+#: Top-level file types that mark a folder as an installer or a download rather than an
+#: installed game: setup programs, disc images and archives (repacks rename theirs).
+INSTALLER_EXTENSIONS = frozenset(
+    {".exe", ".msi", ".bin", ".cab", ".iso", ".rar", ".zip", ".7z", ".arc", ".catalyst"}
+)
+
 class ValidationStatus(Enum):
     VALID = "valid"
     NOT_GAME_FOLDER = "not_game_folder"
+    #: Not a game folder, and it holds setup programs or archives instead.
+    INSTALLER = "installer"
     INCOMPLETE = "incomplete"
     #: The folder overlaps the Builder's own data directory (spec section 6.3, step 1).
     BUILDER_FOLDER = "builder_folder"
@@ -78,6 +86,18 @@ class _DirectoryIndex:
         return current
 
 
+def looks_like_installer(folder: Path) -> bool:
+    """True when ``folder`` directly contains a file with an installer or archive extension."""
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return False
+    return any(
+        Path(name).suffix.lower() in INSTALLER_EXTENSIONS and (folder / name).is_file()
+        for name in names
+    )
+
+
 def resolve_case_insensitive(root: Path, relative: str) -> Path | None:
     """Return the real path of ``relative`` under ``root``, matching names case-insensitively."""
     return _DirectoryIndex().resolve(root, relative)
@@ -102,7 +122,7 @@ def validate_game_folder(
     if not missing:
         status = ValidationStatus.VALID
     elif not any(present(marker) for marker in MARKER_FILES):
-        status = ValidationStatus.NOT_GAME_FOLDER
+        status = ValidationStatus.INSTALLER if looks_like_installer(folder) else ValidationStatus.NOT_GAME_FOLDER
     else:
         status = ValidationStatus.INCOMPLETE
     return ValidationResult(folder, status, missing)
