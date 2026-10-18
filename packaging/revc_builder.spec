@@ -3,6 +3,9 @@
 # -*- mode: python -*-
 
 import os
+import shutil
+import sys
+from importlib.metadata import distribution
 from pathlib import Path
 
 import cmake
@@ -15,12 +18,40 @@ TARGET_ARCH = os.environ.get("REVC_BUILDER_ARCH", "universal2")
 cmake_data = Path(cmake.CMAKE_DATA)
 cmake_share = next((cmake_data / "share").glob("cmake-*"))
 
+
+def wheel_licence(dist_name: str, file_name: str) -> Path:
+    dist = distribution(dist_name)
+    for entry in dist.files or []:
+        if entry.parent.name == "licenses" and entry.name == file_name:
+            return Path(dist.locate_file(entry))
+    raise SystemExit(f"licence file {file_name} not found in the {dist_name} wheel")
+
+
+# Licence texts shipped with the app (THIRD_PARTY_NOTICES.md lists what each covers).
+licences = {
+    "LICENSE.txt": ROOT / "LICENSE",
+    "THIRD_PARTY_NOTICES.md": ROOT / "THIRD_PARTY_NOTICES.md",
+    "LGPL-3.0.txt": ROOT / "packaging" / "licenses" / "LGPL-3.0.txt",
+    "GPL-3.0.txt": ROOT / "packaging" / "licenses" / "GPL-3.0.txt",
+    "Python-LICENSE.txt": Path(sys.base_prefix) / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "LICENSE.txt",
+    "CMake-LICENSE_BSD_3.txt": wheel_licence("cmake", "LICENSE_BSD_3"),
+    "CMake-wheel-LICENSE_Apache_20.txt": wheel_licence("cmake", "LICENSE_Apache_20"),
+    "Ninja-LICENSE_Apache_20.txt": wheel_licence("ninja", "LICENSE_Apache_20"),
+}
+# PyInstaller cannot rename data files, so stage them under their shipped names.
+licence_dir = ROOT / "build" / "licenses"
+shutil.rmtree(licence_dir, ignore_errors=True)
+licence_dir.mkdir(parents=True)
+for name, source in licences.items():
+    shutil.copyfile(source, licence_dir / name)
+
 datas = [
     (str(ROOT / "gui" / "style"), "gui/style"),
     (str(ROOT / "gui" / "i18n" / "revc_builder_pt_BR.qm"), "gui/i18n"),
     (str(ROOT / "vcbuilder" / "data"), "vcbuilder/data"),
     (str(ROOT / "sources.lock"), "vcbuilder/data"),
     (str(ROOT / "patches"), "vcbuilder/data/patches"),
+    (str(licence_dir), "licenses"),
     # CMake finds its modules relative to its executable: <bin>/../share/cmake-X.Y
     (str(cmake_share), f"tools/cmake/share/{cmake_share.name}"),
 ]
