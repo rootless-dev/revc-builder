@@ -36,7 +36,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-python
         with:
-          extras: dev
+          # pytest-qt (in dev) refuses to load without a Qt binding, even for non-GUI tests.
+          extras: gui,dev
       - name: Every mirror holds its pinned commit
         run: .venv/bin/python -m pytest -q -m network
       - name: Fetch, build and verify reVC
