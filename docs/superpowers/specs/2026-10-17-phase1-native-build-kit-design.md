@@ -592,7 +592,9 @@ that checkout only and is skipped on a machine that has none.
 
 ## 12. Open decisions and checks (do not block implementation)
 
-- Licence of this repository's own code — to be chosen by the owner before publishing.
-- Hosting of the repository (GitHub, Bitbucket or other).
+- Decided: this repository's own code is under the MIT License; bundled third-party
+  components are listed in `THIRD_PARTY_NOTICES.md` and their licence texts ship in the
+  app. The repository is hosted at https://github.com/rootless-dev/revc-builder, with CI
+  and tag-driven releases in `.github/workflows/ci.yml`.
 - Checking `required_files.txt` (§6.2) and the radio half of criterion 3 against a Steam
   or retail install, and building on a Mac that has only the Command Line Tools (§5).

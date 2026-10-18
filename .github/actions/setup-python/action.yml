@@ -1,0 +1,29 @@
+name: Set up universal2 Python
+description: >
+  Installs python.org's universal2 Python (the packaged app must run on Apple silicon and
+  Intel) and creates .venv with the project and its extras.
+
+inputs:
+  extras:
+    description: Optional dependency groups to install, comma-separated
+    default: gui,package,dev
+
+runs:
+  using: composite
+  steps:
+    - name: Install python.org Python 3.13.7 (universal2)
+      shell: bash
+      env:
+        PYTHON_PKG_URL: https://www.python.org/ftp/python/3.13.7/python-3.13.7-macos11.pkg
+        PYTHON_PKG_SHA256: f7e8c8d63ab0a4e736b5864aa369098b16af622042c079addb2f1a08400560c5
+      run: |
+        curl -fsSLo "$RUNNER_TEMP/python.pkg" "$PYTHON_PKG_URL"
+        echo "$PYTHON_PKG_SHA256  $RUNNER_TEMP/python.pkg" | shasum -a 256 -c -
+        sudo installer -pkg "$RUNNER_TEMP/python.pkg" -target /
+
+    - name: Create .venv
+      shell: bash
+      run: |
+        /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -m venv .venv
+        .venv/bin/python -m pip install --upgrade pip
+        .venv/bin/python -m pip install -e ".[${{ inputs.extras }}]"

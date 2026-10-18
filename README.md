@@ -1,5 +1,8 @@
 # reVC Builder
 
+[![CI](https://github.com/rootless-dev/revc-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/rootless-dev/revc-builder/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 reVC Builder turns your own copy of **GTA Vice City (PC)** into a game that runs natively
 on your Mac. It is a small desktop app: you point it at your game folder, and it downloads
 the [reVC](https://github.com/mrxenginner/reVC) source code, compiles it on your Mac and
@@ -46,7 +49,9 @@ reVC built by reVC Builder, running natively on an Apple M3 Pro:
 
 ## Using the Builder
 
-1. Download `reVC-Builder-<version>-macOS.zip` and double-click it to unzip.
+1. Download `reVC-Builder-<version>-macOS.zip` from the
+   [latest release](https://github.com/rootless-dev/revc-builder/releases/latest) and
+   double-click it to unzip.
 2. Move `reVC Builder.app` to your Applications folder.
 3. Open it. The first time, macOS blocks it, because the Builder is not notarized by
    Apple (see [Opening the Builder the first time](#opening-the-builder-the-first-time)).
@@ -191,8 +196,41 @@ verifies the signature and writes `dist/reVC-Builder-<version>-macOS.zip`. A uni
 build needs `.venv` to be made from a universal2 Python, such as the python.org installer;
 with a single-architecture Python, run `REVC_BUILDER_ARCH=arm64 packaging/build_app.sh`.
 
+The app ships the licence texts of everything it bundles in
+`Contents/Resources/licenses/` (see [Third-party notices](THIRD_PARTY_NOTICES.md)).
+
+### Continuous integration and releases
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request,
+on GitHub's macOS runners with python.org's universal2 Python:
+
+| Job | What it does |
+|---|---|
+| **Tests** | `pytest` (unit and GUI tests, offscreen). |
+| **Pinned sources and reVC build** | `pytest -m network`, then the CLI from `fetch` to `verify` in a throwaway home: proves the pins, mirrors and patches still produce a verified `reVC.app`. No game files are used and the built app is not uploaded. |
+| **reVC Builder.app** | `packaging/build_app.sh`, checks the app is universal2, and uploads the zip as a workflow artifact. |
+| **GitHub release** | Only for tags `v*`: creates the release and attaches the zip. |
+
+To publish a version, set `version` in `pyproject.toml` and `VERSION` in
+`packaging/revc_builder.spec` to the same number, commit, then tag and push:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow refuses a tag that does not match the version in `pyproject.toml`.
+
 ### Changing a pin
 
 Before moving `sources.lock` to a different reVC commit, re-check the facts the design
 relies on (spec section 3, F1–F6) against that commit, make sure `patches/` still apply,
 and run `pytest -m network`.
+
+## License
+
+reVC Builder's own code is under the [MIT License](LICENSE). The packaged app also contains
+Qt/PySide6 (LGPL-3.0), the Python runtime, CMake and Ninja under their own licences; see
+[Third-party notices](THIRD_PARTY_NOTICES.md). reVC, librw and the libraries the Builder
+compiles on your Mac are not part of this repository or the app and keep their own
+licences.
