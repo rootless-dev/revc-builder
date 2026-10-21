@@ -1,6 +1,7 @@
-"""Files the engine ships with: the source lock, the reVC patches and the required-file list.
+"""Files the engine ships with: the source lock, the reVC patches, the renderer overlays
+and the required-file list.
 
-In a wheel or the packaged app, ``sources.lock`` and ``patches/`` are copied into
+In a wheel or the packaged app, ``sources.lock``, ``patches/`` and ``renderers/`` are copied into
 ``vcbuilder/data``. In a source checkout they live at the repository root.
 """
 
@@ -25,6 +26,11 @@ def lock_path() -> Path:
 
 def patches_dir() -> Path:
     return _locate("patches")
+
+
+def renderers_dir() -> Path:
+    """Per-renderer overlays (Phase 2 design, section 7.3)."""
+    return _locate("renderers")
 
 
 def patch_files() -> list[Path]:

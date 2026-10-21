@@ -43,6 +43,7 @@ class FakePlatform(Platform):
     """A platform made of plain files: no system tools, no compiler."""
 
     name = "fake"
+    lock_platform = "fake"
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -110,6 +111,12 @@ class FakePlatform(Platform):
     def verify_app(self, app: Path, runner, *, stage) -> None:
         self.calls.append(f"verify_app {app.name}")
 
+    def static_library_name(self, stem: str) -> str:
+        return f"lib{stem}.a"
+
+    def verify_renderer(self, app: Path, renderer: str, runner, *, stage) -> None:
+        self.calls.append(f"verify_renderer {renderer}")
+
 
 def test_the_pipeline_runs_against_a_fake_platform(tmp_path):
     home = tmp_path / "home"
@@ -127,11 +134,12 @@ def test_the_pipeline_runs_against_a_fake_platform(tmp_path):
     assert fake.calls == ["tools_present", "check_tools"]
 
     # Stages 6 and 7 (3 to 5 need the network and a compiler): a "built" app in the cache.
-    make_tree(fake.built_app(locations.revc_build), ["Contents/reVC"], content=b"fake binary")
+    make_tree(fake.built_app(locations.revc_build_for("gl3")), ["Contents/reVC"], content=b"fake binary")
     second = session.build(game, start="verify")
     assert second.succeeded, second.error
 
     assert "verify_app reVC.fakeapp" in fake.calls
+    assert "verify_renderer gl3" in fake.calls
     assert session.installed_app == home / "fake-apps" / "reVC.fakeapp"
     assert (session.installed_app / "Contents" / "reVC").read_bytes() == b"fake binary"
     assert session.game_data == home / "fake-data" / "game"

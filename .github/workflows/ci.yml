@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ["v*", "rwgpu-v*"]
   pull_request:
   workflow_dispatch:
 
@@ -52,6 +52,92 @@ jobs:
           name: revc-build-logs
           path: ${{ runner.temp }}/home/Library/Logs
           if-no-files-found: ignore
+
+  renderer:
+    name: wgpu renderer library
+    # Builds the Rust renderer as a universal static library plus its C header (Phase 2
+    # design, section 11). The toolchain comes from renderer/rust-toolchain.toml.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Rust toolchain
+        working-directory: renderer
+        run: rustup toolchain install
+      - name: Formatting and lints
+        working-directory: renderer
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+      - name: Unit, shader and C ABI tests
+        working-directory: renderer
+        run: cargo test --locked
+      - name: Build the universal library and the release archive
+        run: renderer/build-universal.sh "$RUNNER_TEMP/rwgpu"
+      - name: Both architectures are in the library
+        run: lipo -archs "$RUNNER_TEMP"/rwgpu/rwgpu-*/lib/librwgpu.a | grep -q "x86_64 arm64"
+      - name: link-libs.txt covers the library's system libraries
+        working-directory: renderer
+        run: python3 check-link-libs.py aarch64-apple-darwin x86_64-apple-darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rwgpu-macos
+          path: ${{ runner.temp }}/rwgpu/rwgpu-*-macos-universal.tar.gz
+          if-no-files-found: error
+
+  pins-wgpu:
+    name: reVC build with the wgpu renderer
+    # The same build as "Pinned sources and reVC build", with --renderer wgpu and the
+    # library this run just built (the development override); stops after verify.
+    runs-on: macos-15
+    needs: [test, renderer]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-python
+      - uses: actions/download-artifact@v4
+        with:
+          name: rwgpu-macos
+          path: ${{ runner.temp }}/rwgpu-archive
+      - name: Fetch, build and verify reVC with the wgpu renderer
+        run: |
+          mkdir -p "$RUNNER_TEMP/no-game" "$RUNNER_TEMP/rwgpu"
+          tar -xzf "$RUNNER_TEMP"/rwgpu-archive/rwgpu-*-macos-universal.tar.gz -C "$RUNNER_TEMP/rwgpu"
+          .venv/bin/python -m vcbuilder "$RUNNER_TEMP/no-game" --renderer wgpu \
+            --rwgpu-dir "$(echo "$RUNNER_TEMP"/rwgpu/rwgpu-*)" \
+            --from-stage fetch --stop-after verify --home "$RUNNER_TEMP/home"
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revc-wgpu-build-logs
+          path: ${{ runner.temp }}/home/Library/Logs
+          if-no-files-found: ignore
+
+  renderer-release:
+    name: wgpu renderer release
+    # Tags rwgpu-v*: publish the archive. Not marked Latest, so /releases/latest keeps
+    # pointing at the newest Builder release.
+    if: startsWith(github.ref, 'refs/tags/rwgpu-v')
+    runs-on: ubuntu-latest
+    needs: [renderer, pins-wgpu]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: rwgpu-macos
+      - name: The tag matches the crate version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' renderer/rwgpu/Cargo.toml | head -n 1)
+          test "rwgpu-v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != crate version $version"; exit 1; }
+      - name: Create the release with the archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha256sum rwgpu-*-macos-universal.tar.gz
+          gh release create "$GITHUB_REF_NAME" rwgpu-*-macos-universal.tar.gz \
+            --repo "$GITHUB_REPOSITORY" --title "wgpu renderer $GITHUB_REF_NAME" --latest=false \
+            --notes "Prebuilt rwgpu library for reVC Builder's --renderer wgpu. Pin its URL and SHA-256 in sources.lock."
 
   package:
     name: reVC Builder.app

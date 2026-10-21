@@ -44,9 +44,9 @@ class Locations:
     def build(self) -> Path:
         return self.cache / "build"
 
-    @property
-    def revc_build(self) -> Path:
-        return self.build / "reVC"
+    def revc_build_for(self, renderer: str) -> Path:
+        """reVC's CMake build directory for ``renderer``; GL3 keeps Phase 1's ``reVC``."""
+        return self.build / ("reVC" if renderer == "gl3" else f"reVC-{renderer}")
 
     @property
     def prefix(self) -> Path:

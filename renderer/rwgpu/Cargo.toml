@@ -1,0 +1,19 @@
+[package]
+name = "rwgpu"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+wgpu = { version = "=30.0.1", default-features = false, features = ["metal", "wgsl", "std"] }
+raw-window-handle = "0.6.2"
+pollster = "0.4"
+png = "0.18"
+bytemuck = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+naga = { version = "=30.0.1", features = ["wgsl-in"] }

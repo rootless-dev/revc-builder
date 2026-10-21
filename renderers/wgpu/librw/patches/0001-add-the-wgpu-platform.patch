@@ -1,0 +1,379 @@
+Adds librw's WGPU platform (Phase 2 design, section 6.1): PLATFORM_WGPU = 13, the driver
+registration and dispatch in the generic files, DXT pass-through without flipping, and the
+CMake platform that compiles src/wgpu (copied from renderers/wgpu/librw/files) and links
+the prebuilt rwgpu library. Applied inside vendor/librw by reVC Builder.
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 73d055e..3e15d0a 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -34,6 +34,10 @@ elseif(ANDROID)
+ else()
+     set(LIBRW_PLATFORMS "NULL" "GL3")
+     set(LIBRW_PLATFORM_GL3_REQUIRES_OPENGL ON)
++    if(APPLE)
++        # reVC Builder: the wgpu renderer (librw/src/wgpu and the rwgpu library)
++        list(APPEND LIBRW_PLATFORMS "WGPU")
++    endif()
+ endif()
+ list(GET LIBRW_PLATFORMS 0 LIBRW_PLATFORM_DEFAULT)
+ set(LIBRW_PLATFORM "${LIBRW_PLATFORM_DEFAULT}" CACHE STRING "Platform (choices=${LIBRW_PLATFORMS})")
+diff --git a/rw.h b/rw.h
+index fb9829f..fcc7a84 100644
+--- a/rw.h
++++ b/rw.h
+@@ -23,3 +23,4 @@
+ #include "src/gl/rwgl3.h"
+ #include "src/gl/rwgl3shader.h"
+ #include "src/gl/rwgl3plg.h"
++#include "src/wgpu/rwwgpu.h"
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index eb78359..f805d63 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -148,7 +148,41 @@ set_target_properties(librw
+         PREFIX ""
+ )
+ 
+-if(LIBRW_PLATFORM_GL3)
++if(LIBRW_PLATFORM_WGPU)
++    # reVC Builder: the WGPU platform driver forwards rendering to the prebuilt rwgpu
++    # static library (RWGPU_LIBRARY, header in RWGPU_INCLUDE_DIR); RWGPU_LINK_LIBS lists
++    # the system libraries that library needs.
++    foreach(variable RWGPU_LIBRARY RWGPU_INCLUDE_DIR)
++        if(NOT ${variable})
++            message(FATAL_ERROR "LIBRW_PLATFORM=WGPU needs ${variable}")
++        endif()
++    endforeach()
++    target_sources(librw PRIVATE
++        wgpu/rwwgpu.h
++        wgpu/rwwgpuimpl.h
++        wgpu/wgpu.cpp
++        wgpu/wgpudevice.cpp
++        wgpu/wgpuimmed.cpp
++        wgpu/wgpumatfx.cpp
++        wgpu/wgpupipe.cpp
++        wgpu/wgpuraster.cpp
++        wgpu/wgpuskin.cpp
++    )
++    target_include_directories(librw PRIVATE "${RWGPU_INCLUDE_DIR}")
++    if (NOT TARGET glfw)
++        find_package(glfw3 REQUIRED)
++    endif()
++    target_link_libraries(librw PUBLIC glfw)
++    set(rwgpu_link_items)
++    foreach(item IN LISTS RWGPU_LINK_LIBS)
++        if(item MATCHES "^framework:(.+)$")
++            list(APPEND rwgpu_link_items "-framework ${CMAKE_MATCH_1}")
++        else()
++            list(APPEND rwgpu_link_items "${item}")
++        endif()
++    endforeach()
++    target_link_libraries(librw PRIVATE "${RWGPU_LIBRARY}" ${rwgpu_link_items})
++elseif(LIBRW_PLATFORM_GL3)
+     if (LIBRW_GL3_GFXLIB STREQUAL "GLFW")
+         if (NOT TARGET glfw)
+             find_package(glfw3 REQUIRED)
+diff --git a/src/base.cpp b/src/base.cpp
+index 3c3ca08..ab13733 100644
+--- a/src/base.cpp
++++ b/src/base.cpp
+@@ -31,6 +31,8 @@ int32 build = 0xFFFF;
+ 	int32 platform = PLATFORM_WDGL;
+ #elif RW_GL3
+ 	int32 platform = PLATFORM_GL3;
++#elif RW_WGPU
++	int32 platform = PLATFORM_WGPU;
+ #elif RW_D3D9
+ 	int32 platform = PLATFORM_D3D9;
+ #else
+diff --git a/src/charset.cpp b/src/charset.cpp
+index 5188b80..90628de 100644
+--- a/src/charset.cpp
++++ b/src/charset.cpp
+@@ -12,6 +12,7 @@
+ #include "ps2/rwps2.h"
+ #include "d3d/rwd3d.h"
+ #include "gl/rwgl3.h"
++#include "wgpu/rwwgpu.h"
+ 
+ 
+ #define PLUGIN_ID 1000	// TODO: find a better ID
+diff --git a/src/engine.cpp b/src/engine.cpp
+index 0583cb3..16a2862 100644
+--- a/src/engine.cpp
++++ b/src/engine.cpp
+@@ -16,6 +16,7 @@
+ #include "d3d/rwd3d8.h"
+ #include "d3d/rwd3d9.h"
+ #include "gl/rwgl3.h"
++#include "wgpu/rwwgpu.h"
+ #include "gl/rwwdgl.h"
+ 
+ #define PLUGIN_ID 0
+@@ -236,6 +237,9 @@ Engine::init(MemoryFunctions *memfuncs)
+ 	d3d9::registerPlatformPlugins();
+ 	wdgl::registerPlatformPlugins();
+ 	gl3::registerPlatformPlugins();
++#ifdef RW_WGPU
++	wgpu::registerPlatformPlugins();
++#endif
+ 
+ 	Engine::state = Initialized;
+ 	return 1;
+@@ -268,6 +272,8 @@ Engine::open(EngineOpenParams *p)
+ 	engine->device = ps2::renderdevice;
+ #elif RW_GL3
+ 	engine->device = gl3::renderdevice;
++#elif RW_WGPU
++	engine->device = wgpu::renderdevice;
+ #elif RW_D3D9
+ 	engine->device = d3d::renderdevice;
+ #else
+diff --git a/src/geoplg.cpp b/src/geoplg.cpp
+index c1e1356..a8ae6a3 100644
+--- a/src/geoplg.cpp
++++ b/src/geoplg.cpp
+@@ -18,6 +18,7 @@
+ #include "d3d/rwd3d9.h"
+ #include "gl/rwwdgl.h"
+ #include "gl/rwgl3.h"
++#include "wgpu/rwwgpu.h"
+ 
+ #define PLUGIN_ID 2
+ 
+@@ -251,6 +252,10 @@ destroyNativeData(void *object, int32 offset, int32 size)
+ 		return d3d9::destroyNativeData(object, offset, size);
+ 	if(geometry->instData->platform == PLATFORM_GL3)
+ 		return gl3::destroyNativeData(object, offset, size);
++#ifdef RW_WGPU
++	if(geometry->instData->platform == PLATFORM_WGPU)
++		return wgpu::destroyNativeData(object, offset, size);
++#endif
+ 	return object;
+ }
+ 
+diff --git a/src/matfx.cpp b/src/matfx.cpp
+index c143fc1..a2eb1ae 100644
+--- a/src/matfx.cpp
++++ b/src/matfx.cpp
+@@ -18,6 +18,7 @@
+ #include "d3d/rwd3d9.h"
+ #include "gl/rwwdgl.h"
+ #include "gl/rwgl3.h"
++#include "wgpu/rwwgpu.h"
+ #include "gl/rwgl3plg.h"
+ 
+ #define PLUGIN_ID ID_MATFX
+@@ -619,6 +620,9 @@ registerMatFXPlugin(void)
+ 	d3d9::initMatFX();
+ 	wdgl::initMatFX();
+ 	gl3::initMatFX();
++#ifdef RW_WGPU
++	wgpu::initMatFX();
++#endif
+ 
+ 	matFXGlobals.atomicOffset =
+ 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,
+diff --git a/src/raster.cpp b/src/raster.cpp
+index c7ebffe..39deed7 100644
+--- a/src/raster.cpp
++++ b/src/raster.cpp
+@@ -15,6 +15,7 @@
+ //#include "d3d/rwd3d8.h"
+ //#include "d3d/rwd3d9.h"
+ #include "gl/rwgl3.h"
++#include "wgpu/rwwgpu.h"
+ 
+ #define PLUGIN_ID 0
+ 
+@@ -496,6 +497,57 @@ xbox_to_gl3(rw::Raster *ras)
+ #endif
+ }
+ 
++#ifdef RW_WGPU
++// reVC Builder: DXT data passes through to the wgpu renderer unchanged, since its
++// rasters are top-down like D3D's (no flipDXT).
++static rw::Raster*
++dxt_to_wgpu(rw::Raster *ras, int dxt, bool32 hasAlpha)
++{
++	using namespace rw;
++
++	if(dxt == 0 || !wgpu::caps.dxtSupported || ras->width % 4 || ras->height % 4)
++		return nil;
++
++	Raster *newras = Raster::create(ras->width, ras->height, ras->depth,
++		                        ras->format | Raster::TEXTURE | Raster::DONTALLOCATE);
++	int numLevels = ras->getNumLevels();
++	wgpu::allocateDXT(newras, dxt, numLevels, hasAlpha);
++	for(int i = 0; i < numLevels; i++){
++		// Blocks of 4x4 pixels; a level smaller than a block still takes one.
++		int32 w = ras->width >> i, h = ras->height >> i;
++		uint32 size = ((w+3)/4 > 0 ? (w+3)/4 : 1) * ((h+3)/4 > 0 ? (h+3)/4 : 1) * (dxt == 1 ? 8 : 16);
++		uint8 *srcpx = ras->lock(i, Raster::LOCKREAD);
++		uint8 *dstpx = newras->lock(i, Raster::LOCKWRITE | Raster::LOCKNOFETCH);
++		memcpy(dstpx, srcpx, size);
++		ras->unlock(i);
++		newras->unlock(i);
++	}
++	return newras;
++}
++
++static int
++d3dDxt(int32 format)
++{
++	switch(format){
++	case d3d::D3DFMT_DXT1: return 1;
++	case d3d::D3DFMT_DXT3: return 3;
++	case d3d::D3DFMT_DXT5: return 5;
++	}
++	return 0;
++}
++
++static int
++xboxDxt(int32 format)
++{
++	switch(format){
++	case xbox::D3DFMT_DXT1: return 1;
++	case xbox::D3DFMT_DXT3: return 3;
++	case xbox::D3DFMT_DXT5: return 5;
++	}
++	return 0;
++}
++#endif
++
+ rw::Raster*
+ Raster::convertTexToCurrentPlatform(rw::Raster *ras)
+ {
+@@ -528,6 +580,23 @@ Raster::convertTexToCurrentPlatform(rw::Raster *ras)
+ 			return newras;
+ 		}
+ 	}
++#ifdef RW_WGPU
++	else if((ras->platform == PLATFORM_D3D8 || ras->platform == PLATFORM_D3D9) && rw::platform == PLATFORM_WGPU){
++		d3d::D3dRaster *d3dras = GETD3DRASTEREXT(ras);
++		Raster *newras = dxt_to_wgpu(ras, d3dras->customFormat ? d3dDxt(d3dras->format) : 0, d3dras->hasAlpha);
++		if(newras){
++			ras->destroy();
++			return newras;
++		}
++	}else if(ras->platform == PLATFORM_XBOX && rw::platform == PLATFORM_WGPU){
++		xbox::XboxRaster *xboxras = GETXBOXRASTEREXT(ras);
++		Raster *newras = dxt_to_wgpu(ras, xboxras->customFormat ? xboxDxt(xboxras->format) : 0, xboxras->hasAlpha);
++		if(newras){
++			ras->destroy();
++			return newras;
++		}
++	}
++#endif
+ 
+ 	// fall back to going through Image directly
+ 	int32 width, height, depth, format;
+diff --git a/src/rwbase.h b/src/rwbase.h
+index 6bc8a54..bbe6de8 100644
+--- a/src/rwbase.h
++++ b/src/rwbase.h
+@@ -15,6 +15,10 @@
+ //#define RW_GL_USE_VAOS
+ #endif
+ 
++#ifdef RW_WGPU
++#define RWDEVICE wgpu
++#endif
++
+ #ifdef RW_GLES2
+ #define RW_GLES
+ #endif
+@@ -543,6 +547,7 @@ enum Platform
+ 
+ 	PLATFORM_WDGL = 11,	// WarDrum OpenGL
+ 	PLATFORM_GL3  = 12,	// my GL3 implementation
++	PLATFORM_WGPU = 13,	// reVC Builder's wgpu renderer
+ 
+ 	NUM_PLATFORMS,
+ 
+@@ -616,6 +621,7 @@ enum PluginID
+ 	ID_RASTERD3D9    = MAKEPLUGINID(VEND_RASTER, PLATFORM_D3D9),
+ 	ID_RASTERWDGL    = MAKEPLUGINID(VEND_RASTER, PLATFORM_WDGL),
+ 	ID_RASTERGL3     = MAKEPLUGINID(VEND_RASTER, PLATFORM_GL3),
++	ID_RASTERWGPU    = MAKEPLUGINID(VEND_RASTER, PLATFORM_WGPU),
+ 
+ 	// anything driver/device related (only as allocation tag)
+ 	ID_DRIVER        = MAKEPLUGINID(VEND_DRIVER, 0)
+diff --git a/src/skin.cpp b/src/skin.cpp
+index abaa548..e8575a3 100644
+--- a/src/skin.cpp
++++ b/src/skin.cpp
+@@ -18,6 +18,7 @@
+ #include "d3d/rwd3d9.h"
+ #include "gl/rwwdgl.h"
+ #include "gl/rwgl3.h"
++#include "wgpu/rwwgpu.h"
+ #include "gl/rwgl3plg.h"
+ 
+ #define PLUGIN_ID ID_SKIN
+@@ -373,6 +374,9 @@ registerSkinPlugin(void)
+ 	d3d9::initSkin();
+ 	wdgl::initSkin();
+ 	gl3::initSkin();
++#ifdef RW_WGPU
++	wgpu::initSkin();
++#endif
+ 
+ 	int32 o;
+ 	o = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
+diff --git a/src/texture.cpp b/src/texture.cpp
+index 958ae08..07bec04 100644
+--- a/src/texture.cpp
++++ b/src/texture.cpp
+@@ -17,6 +17,7 @@
+ #include "d3d/rwd3d9.h"
+ #include "d3d/rwd3dimpl.h"
+ #include "gl/rwgl3.h"
++#include "wgpu/rwwgpu.h"
+ 
+ #define PLUGIN_ID 0
+ 
+@@ -481,6 +482,10 @@ Texture::streamReadNative(Stream *stream)
+ 		return xbox::readNativeTexture(stream);
+ 	if(platform == PLATFORM_GL3)
+ 		return gl3::readNativeTexture(stream);
++#ifdef RW_WGPU
++	if(platform == PLATFORM_WGPU)
++		return wgpu::readNativeTexture(stream);
++#endif
+ 	assert(0 && "unsupported platform");
+ 	return nil;
+ }
+@@ -498,6 +503,10 @@ Texture::streamWriteNative(Stream *stream)
+ 		xbox::writeNativeTexture(this, stream);
+ 	else if(this->raster->platform == PLATFORM_GL3)
+ 		gl3::writeNativeTexture(this, stream);
++#ifdef RW_WGPU
++	else if(this->raster->platform == PLATFORM_WGPU)
++		wgpu::writeNativeTexture(this, stream);
++#endif
+ 	else
+ 		assert(0 && "unsupported platform");
+ }
+@@ -515,6 +524,10 @@ Texture::streamGetSizeNative(void)
+ 		return xbox::getSizeNativeTexture(this);
+ 	if(this->raster->platform == PLATFORM_GL3)
+ 		return gl3::getSizeNativeTexture(this);
++#ifdef RW_WGPU
++	if(this->raster->platform == PLATFORM_WGPU)
++		return wgpu::getSizeNativeTexture(this);
++#endif
+ 	assert(0 && "unsupported platform");
+ 	return 0;
+ }
+@@ -589,6 +602,9 @@ getMaxSupportedMaxAnisotropy(void)
+ #endif
+ #ifdef RW_GL3
+ 	return (int32)gl3::gl3Caps.maxAnisotropy;
++#endif
++#ifdef RW_WGPU
++	return (int32)wgpu::caps.maxAnisotropy;
+ #endif
+ 	return 1;
+ }

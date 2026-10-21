@@ -1,0 +1,238 @@
+Development-only capture harness (Phase 2 design, section 10); never applied by reVC
+Builder. With REVC_CAPTURE=1: fixed 1/30 s game clock, no input, a fixed window on the
+primary monitor, and scripted new game, cutscene skip and weather. See capture.py.
+
+diff --git a/src/animation/CutsceneMgr.cpp b/src/animation/CutsceneMgr.cpp
+index 84a1210..d58a02c 100644
+--- a/src/animation/CutsceneMgr.cpp
++++ b/src/animation/CutsceneMgr.cpp
+@@ -2,6 +2,7 @@
+ 
+ #include "General.h"
+ #include "CutsceneMgr.h"
++#include "capture.h"
+ #include "Directory.h"
+ #include "Camera.h"
+ #include "Streaming.h"
+@@ -546,6 +547,7 @@ CCutsceneMgr::Update(void)
+ 				|| CPad::GetPad(0)->GetEnterJustDown()
+ 				|| CPad::GetPad(0)->GetCharJustDown(' ')
+ #endif
++				|| CaptureSkipCutsceneNow()
+ 			)
+ 					FinishCutscene();
+ 		}
+diff --git a/src/core/Pad.cpp b/src/core/Pad.cpp
+index 9530f9e..bb91cb0 100644
+--- a/src/core/Pad.cpp
++++ b/src/core/Pad.cpp
+@@ -12,6 +12,7 @@
+ #endif
+ 
+ #include "Pad.h"
++#include "capture.h"
+ #include "ControllerConfig.h"
+ #include "Timer.h"
+ #include "Frontend.h"
+@@ -1732,6 +1733,14 @@ void CPad::UpdatePads(void)
+ 		IsAffectedByController = true;
+ 	else {
+ #endif
++		if (CaptureActive()) {
++			GetPad(0)->PCTempKeyState.Clear();
++			GetPad(0)->PCTempJoyState.Clear();
++			GetPad(0)->PCTempMouseState.Clear();
++			NewKeyState.Clear();
++			NewMouseControllerState.Clear();
++			PCTempMouseControllerState.Clear();
++		}
+ 		ControlsManager.ClearSimButtonPressCheckers();
+ 		ControlsManager.AffectPadFromKeyBoard();
+ 		ControlsManager.AffectPadFromMouse();
+diff --git a/src/core/Timer.cpp b/src/core/Timer.cpp
+index 77f26a8..d485d37 100644
+--- a/src/core/Timer.cpp
++++ b/src/core/Timer.cpp
+@@ -5,6 +5,7 @@
+ #include "DMAudio.h"
+ #include "Record.h"
+ #include "Timer.h"
++#include "capture.h"
+ #include "SpecialFX.h"
+ 
+ uint32 CTimer::m_snTimeInMilliseconds;
+@@ -119,6 +120,8 @@ void CTimer::Update(void)
+ 		RsTimerType timer = RsTimer();
+ 		
+ 		RsTimerType updInMs = timer - oldPcTimer;
++		if (CaptureActive())
++			updInMs = 1000.0 / 30.0;
+ 		
+ 		frameTime = (double)updInMs * ms_fTimeScale;
+ 		
+@@ -209,6 +212,8 @@ void CTimer::Update(void)
+ 		RsTimerType timer = RsTimer();
+ 		
+ 		RsTimerType updInMs = timer - oldPcTimer;
++		if (CaptureActive())
++			updInMs = 1000.0 / 30.0;
+ 		
+ 		double frameTime = (double)updInMs * ms_fTimeScale;
+ 		
+diff --git a/src/core/capture.cpp b/src/core/capture.cpp
+new file mode 100644
+index 0000000..bd93b57
+--- /dev/null
++++ b/src/core/capture.cpp
+@@ -0,0 +1,69 @@
++// reVC Builder development harness for reproducible captures (Phase 2 design, section 10).
++#include "common.h"
++#include "Frontend.h"
++#include "Weather.h"
++#include "capture.h"
++
++static int captureState = -1;	// -1 unknown, 0 off, 1 on
++static unsigned long captureFrameNumber;
++static unsigned long newGameFrame, skipCutsceneFrame, weatherFrame;
++static int weather;
++
++static unsigned long
++envFrame(const char *name)
++{
++	const char *v = getenv(name);
++	return v ? strtoul(v, nil, 10) : 0;
++}
++
++bool
++CaptureActive(void)
++{
++	if(captureState < 0){
++		const char *v = getenv("REVC_CAPTURE");
++		captureState = v && v[0] == '1';
++		newGameFrame = envFrame("REVC_CAPTURE_NEWGAME");
++		skipCutsceneFrame = envFrame("REVC_CAPTURE_SKIPCUTSCENE");
++		// REVC_CAPTURE_WEATHER=<frame>:<weather>, e.g. 3000:2 for rain
++		const char *w = getenv("REVC_CAPTURE_WEATHER");
++		if(w)
++			sscanf(w, "%lu:%d", &weatherFrame, &weather);
++		if(captureState)
++			fprintf(stderr, "capture: fixed time step, no input, new game at %lu, skip cutscene at %lu\n",
++				newGameFrame, skipCutsceneFrame);
++	}
++	return captureState == 1;
++}
++
++void
++CaptureFrame(void)
++{
++	if(!CaptureActive())
++		return;
++	captureFrameNumber++;
++	if(captureFrameNumber == 2){
++		int w = 960, h = 540;
++		const char *size = getenv("REVC_CAPTURE_WINDOW");
++		if(size)
++			sscanf(size, "%dx%d", &w, &h);
++		CapturePlaceWindow(w, h);
++	}
++	if(captureFrameNumber == newGameFrame){
++		fprintf(stderr, "capture: frame %lu: starting a new game\n", captureFrameNumber);
++		FrontEndMenuManager.DoSettingsBeforeStartingAGame();
++	}
++	if(weatherFrame && captureFrameNumber == weatherFrame){
++		fprintf(stderr, "capture: frame %lu: weather %d\n", captureFrameNumber, weather);
++		CWeather::ForceWeatherNow(weather);
++	}
++}
++
++bool
++CaptureSkipCutsceneNow(void)
++{
++	if(CaptureActive() && captureFrameNumber == skipCutsceneFrame){
++		fprintf(stderr, "capture: frame %lu: skipping the cutscene\n", captureFrameNumber);
++		return true;
++	}
++	return false;
++}
+diff --git a/src/core/capture.h b/src/core/capture.h
+new file mode 100644
+index 0000000..5c0662e
+--- /dev/null
++++ b/src/core/capture.h
+@@ -0,0 +1,13 @@
++// reVC Builder development harness for reproducible captures (Phase 2 design, section 10).
++// Never part of a user build: tools/capture applies it to a development checkout.
++#pragma once
++
++// REVC_CAPTURE=1: fixed 1/30 s game clock steps, no keyboard, mouse or pad input.
++bool CaptureActive(void);
++// Called once per main-loop frame; starts a new game at frame REVC_CAPTURE_NEWGAME.
++void CaptureFrame(void);
++// True at frame REVC_CAPTURE_SKIPCUTSCENE: the running cutscene is skipped.
++bool CaptureSkipCutsceneNow(void);
++// Defined by the GLFW skeleton: moves the window to the primary monitor and resizes it
++// (REVC_CAPTURE_WINDOW=<width>x<height> in screen points, default 960x540).
++void CapturePlaceWindow(int width, int height);
+diff --git a/src/core/main.cpp b/src/core/main.cpp
+index a412a98..54e319c 100644
+--- a/src/core/main.cpp
++++ b/src/core/main.cpp
+@@ -10,6 +10,7 @@
+ #endif
+ 
+ #include "main.h"
++#include "capture.h"
+ #include "CdStream.h"
+ #include "General.h"
+ #include "RwHelper.h"
+@@ -1539,6 +1540,7 @@ Render2dStuffAfterFade(void)
+ void
+ Idle(void *arg)
+ {
++	CaptureFrame();
+ 	CTimer::Update();
+ 
+ 	tbInit();
+@@ -1706,6 +1708,7 @@ popret:	POP_MEMID();	// MEMID_RENDER
+ void
+ FrontendIdle(void)
+ {
++	CaptureFrame();
+ 	CDraw::CalculateAspectRatio();
+ 	CTimer::Update();
+ 	CSprite2d::SetRecipNearClip(); // this should be on InitialiseRenderWare according to PS2 asm. seems like a bug fix
+diff --git a/src/skel/glfw/glfw.cpp b/src/skel/glfw/glfw.cpp
+index 9cbfc75..f1b8904 100644
+--- a/src/skel/glfw/glfw.cpp
++++ b/src/skel/glfw/glfw.cpp
+@@ -35,6 +35,7 @@ long _dwOperatingSystemVersion;
+ #include "skeleton.h"
+ #include "platform.h"
+ #include "crossplatform.h"
++#include "capture.h"
+ 
+ #include "main.h"
+ #include "FileMgr.h"
+@@ -1889,7 +1890,7 @@ _InputTranslateShiftKeyUpDown(RsKeyCodes *rs) {
+ // TODO this only works in frontend(and luckily only frontend use this). Fun fact: if I get pos manually in game, glfw reports that it's > 32000
+ void
+ cursorCB(GLFWwindow* window, double xpos, double ypos) {
+-	if (!FrontEndMenuManager.m_bMenuActive)
++	if (!FrontEndMenuManager.m_bMenuActive || CaptureActive())
+ 		return;
+ 	
+ 	int winw, winh;
+@@ -2662,3 +2663,13 @@ int strncasecmp(const char *str1, const char *str2, size_t len)
+ }
+ #endif
+ #endif
++
++// reVC Builder capture harness (development only): a window of a fixed size on the
++// primary monitor, so every run renders the same number of pixels.
++#include "capture.h"
++void
++CapturePlaceWindow(int width, int height)
++{
++	glfwSetWindowPos(PSGLOBAL(window), 0, 40);
++	glfwSetWindowSize(PSGLOBAL(window), width, height);
++}

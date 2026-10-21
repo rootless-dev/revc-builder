@@ -94,7 +94,8 @@ def test_repository_lock_file_is_valid():
     assert lock.librw.urls[0] == "https://github.com/mrxenginner/librw.git"
     assert lock.librw.commit == "0ad67ee226ea51beb3f465cb8857195e4db16029"
     assert lock.librw.path == "vendor/librw"
-    assert {archive.name for archive in lock.archives} == {"glfw", "openal-soft", "mpg123"}
+    assert {archive.name for archive in lock.archives if archive.renderer is None} == {"glfw", "openal-soft", "mpg123"}
+    assert {archive.name for archive in lock.archives if archive.renderer is not None} == {"rwgpu"}
     for url in [*lock.revc.urls, *lock.librw.urls] + [u for a in lock.archives for u in a.urls]:
         assert url.startswith("https://")
 

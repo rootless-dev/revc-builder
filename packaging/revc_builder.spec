@@ -51,6 +51,7 @@ datas = [
     (str(ROOT / "vcbuilder" / "data"), "vcbuilder/data"),
     (str(ROOT / "sources.lock"), "vcbuilder/data"),
     (str(ROOT / "patches"), "vcbuilder/data/patches"),
+    (str(ROOT / "renderers"), "vcbuilder/data/renderers"),
     (str(licence_dir), "licenses"),
     # CMake finds its modules relative to its executable: <bin>/../share/cmake-X.Y
     (str(cmake_share), f"tools/cmake/share/{cmake_share.name}"),

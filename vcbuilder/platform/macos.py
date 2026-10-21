@@ -86,8 +86,16 @@ def deployment_target(arch: str) -> str:
     return "11.0" if arch == "arm64" else "10.15"
 
 
+#: Frameworks the reVC executable must and must not link, per renderer (design §7.3).
+_RENDERER_FRAMEWORKS = {
+    "gl3": ({"OpenGL"}, set()),
+    "wgpu": ({"Metal"}, {"OpenGL"}),
+}
+
+
 class MacOSPlatform(Platform):
     name = "macOS"
+    lock_platform = "macos"
 
     def __init__(self, applications: Path = Path("/Applications")) -> None:
         self.applications = applications
@@ -244,6 +252,24 @@ class MacOSPlatform(Platform):
         result = runner.run([CODESIGN, "--verify", "--deep", "--strict", "--verbose=2", app], stage=stage, check=False)
         if result.returncode != 0:
             raise BundleError(f"codesign --verify failed:\n{result.output}")
+
+
+    def static_library_name(self, stem: str) -> str:
+        return f"lib{stem}.a"
+
+    def verify_renderer(self, app: Path, renderer: str, runner: CommandRunner, *, stage: str) -> None:
+        required, forbidden = _RENDERER_FRAMEWORKS[renderer]
+        linked: set[str] = set()
+        for executable in sorted((app / "Contents" / "MacOS").iterdir()):
+            if not executable.is_file():
+                continue
+            for library in parse_otool_libraries(runner.run([OTOOL, "-L", executable], stage=stage).output):
+                if library.startswith("/System/Library/Frameworks/"):
+                    linked.add(library.split("/")[4].removesuffix(".framework"))
+        problems = [f"does not link {name}.framework" for name in sorted(required - linked)]
+        problems += [f"links {name}.framework" for name in sorted(forbidden & linked)]
+        if problems:
+            raise CompileError(f"the {renderer} build of {app.name} " + " and ".join(problems))
 
 
 def find_macho_files(bundle: Path) -> list[Path]:

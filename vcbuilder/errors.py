@@ -88,6 +88,14 @@ class UnsupportedPlatformError(BuildError):
     default_message = "This operating system is not supported yet. reVC Builder currently runs on macOS only."
 
 
+class RendererUnavailableError(BuildError):
+    code = "renderer_unavailable"
+    default_message = (
+        "The prebuilt renderer has not been published yet. Build with the OpenGL renderer, "
+        "or point the Builder at a locally built renderer."
+    )
+
+
 class InstallError(BuildError):
     code = "install"
     default_message = "Could not install the game. Copy the log and include it when asking for help."

@@ -38,7 +38,8 @@ def test_every_git_mirror_contains_its_pinned_commit(name, url, commit):
         assert branches.returncode == 0 and branches.stdout.strip(), f"{commit} is not on any branch of {url}"
 
 
-ARCHIVE_URLS = [(a.name, url, a.sha256) for a in LOCK.archives for url in a.urls]
+# Placeholder entries (Phase 2 design, section 7.2) have nothing to download yet.
+ARCHIVE_URLS = [(a.name, url, a.sha256) for a in LOCK.archives if not a.placeholder for url in a.urls]
 
 
 @pytest.mark.network
