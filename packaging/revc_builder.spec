@@ -12,7 +12,7 @@ import cmake
 import ninja
 
 ROOT = Path(SPECPATH).resolve().parent
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 TARGET_ARCH = os.environ.get("REVC_BUILDER_ARCH", "universal2")
 
 cmake_data = Path(cmake.CMAKE_DATA)

@@ -55,7 +55,8 @@ reVC built by reVC Builder, running natively on an Apple M3 Pro:
 
 1. Download `reVC-Builder-<version>-macOS.zip` from the
    [latest release](https://github.com/rootless-dev/revc-builder/releases/latest) and
-   double-click it to unzip.
+   double-click it to unzip. (Releases named `rwgpu-v…` hold the renderer library; the
+   Builder downloads that by itself, so you never need them.)
 2. Move `reVC Builder.app` to your Applications folder.
 3. Open it. The first time, macOS blocks it, because the Builder is not notarized by
    Apple (see [Opening the Builder the first time](#opening-the-builder-the-first-time)).
@@ -69,8 +70,8 @@ reVC built by reVC Builder, running natively on an Apple M3 Pro:
    - **Tools**: if the Command Line Tools are missing, click **Install** and follow
      Apple's window. The page notices by itself when the installation finishes; then click
      **Build the game**.
-   - **Build**: the Builder downloads the source code, compiles the sound and window
-     libraries and the game, checks the result and installs it. **Show log** shows every
+   - **Build**: the Builder downloads the source code and the prebuilt renderer, compiles
+     the sound and window libraries and the game, checks the result and installs it. **Show log** shows every
      line of output. On an Apple M3 Pro this takes about two minutes.
    - **Done**: click **Play**.
 
@@ -272,8 +273,8 @@ To publish a version, set `version` in `pyproject.toml` and `VERSION` in
 `packaging/revc_builder.spec` to the same number, commit, then tag and push:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 The workflow refuses a tag that does not match the version in `pyproject.toml`.
