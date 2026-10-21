@@ -27,3 +27,4 @@ gamefiles/
 
 # macOS
 .DS_Store
+renderer/target/

@@ -45,6 +45,12 @@ class ArchiveSource:
     version: str
     urls: tuple[str, ...]
     sha256: str
+    #: Only needed by this renderer (Phase 2 design, section 7.2); None: every build.
+    renderer: str | None = None
+    #: Only for this platform (``Platform.lock_platform``); None: every platform.
+    platform: str | None = None
+    #: Not published yet: never downloaded.
+    placeholder: bool = False
 
     @property
     def filename(self) -> str:
@@ -62,6 +68,20 @@ class Lock:
             if archive.name == name:
                 return archive
         raise KeyError(name)
+
+    def archives_for(self, renderer: str, platform: str) -> tuple[ArchiveSource, ...]:
+        """The archives a build with ``renderer`` on ``platform`` uses."""
+        return tuple(
+            a for a in self.archives
+            if a.renderer in (None, renderer) and a.platform in (None, platform)
+        )
+
+    def renderer_library(self, renderer: str, platform: str) -> ArchiveSource | None:
+        """The prebuilt library ``renderer`` needs on ``platform``, if any."""
+        for archive in self.archives_for(renderer, platform):
+            if archive.renderer == renderer:
+                return archive
+        return None
 
 
 # --- lock file ------------------------------------------------------------------------
@@ -104,7 +124,16 @@ def parse_lock(text: str) -> Lock:
             names = {PurePosixPath(urlparse(url).path).name for url in urls}
             if len(names) != 1 or not next(iter(names)).endswith(_ARCHIVE_SUFFIXES):
                 raise LockError(f"sources.{name}.urls must all name the same archive file")
-            archives.append(ArchiveSource(name, version, tuple(urls), digest.lower()))
+            selectors = {}
+            for key in ("renderer", "platform"):
+                value = entry.get(key)
+                if value is not None and (not isinstance(value, str) or not value):
+                    raise LockError(f"sources.{name}.{key} must be a non-empty string")
+                selectors[key] = value
+            placeholder = entry.get("placeholder", False)
+            if not isinstance(placeholder, bool):
+                raise LockError(f"sources.{name}.placeholder must be true or false")
+            archives.append(ArchiveSource(name, version, tuple(urls), digest.lower(), placeholder=placeholder, **selectors))
         else:
             raise LockError(f"sources.{name}.type must be 'git' or 'archive'")
 

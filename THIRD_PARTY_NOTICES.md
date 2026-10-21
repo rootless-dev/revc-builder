@@ -20,8 +20,27 @@ in `Contents/Frameworks/PySide6/` and `Contents/Frameworks/shiboken6/` — so th
 replaced with compatible versions you build yourself. Their complete corresponding source code is
 available from the source links above for the exact version listed.
 
+## Source code from reVC and librw in the app
+
+The app carries the patches and overlay files it applies to reVC and librw at build time
+(`patches/` and `renderers/`, in `Contents/Resources/vcbuilder/data/`):
+
+- The WGPU driver in `renderers/wgpu/librw/files/src/wgpu/` and the frame-dump patch in
+  `renderers/gl3/librw/patches/` are adapted from librw's OpenGL 3 backend,
+  Copyright (c) 2014 aap, under the MIT License; the files keep that notice. librw:
+  https://github.com/aap/librw (the pinned mirror is listed in `sources.lock`).
+- The patches contain short excerpts of reVC's and librw's source as context, and
+  `renderers/wgpu/revc/files/src/extras/shaders/wgpu/` holds WGSL translations of three of
+  reVC's fragment shaders (colour filter, contrast, screen droplets). reVC is distributed
+  under the licence in its repository's `LICENSE.md` (MIT with an additional condition).
+
 ## Not included
 
-The app does not contain reVC, librw, GLFW, OpenAL Soft or mpg123. The Builder downloads
-their source code on your Mac at build time from the pinned locations in `sources.lock`,
-and they keep their own licences.
+The app does not contain reVC, librw, GLFW, OpenAL Soft or mpg123 as programs or as
+complete source trees. The Builder downloads their source code on your Mac at build time
+from the pinned locations in `sources.lock`, and they keep their own licences.
+
+The prebuilt wgpu renderer library (`rwgpu`) is not part of the app either: a build with
+`--renderer wgpu` downloads it from this repository's releases. Its archive contains
+`THIRD_PARTY_LICENSES.txt` with the licences of the Rust crates linked into it (wgpu and
+its dependencies, under MIT and Apache-2.0 terms).

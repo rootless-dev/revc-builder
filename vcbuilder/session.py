@@ -21,6 +21,8 @@ from vcbuilder.gamefiles import (
 from vcbuilder import platform as platforms
 from vcbuilder.platform.base import Platform, ToolsStatus
 from vcbuilder.preferences import Preferences
+from vcbuilder.renderers import DEFAULT_RENDERER
+from vcbuilder.renderers import get as get_renderer
 from vcbuilder.pipeline import BuildContext, Pipeline, PipelineResult, default_stages, ninja_progress
 from vcbuilder.resources import lock_path, patch_files
 from vcbuilder.runner import BuildLog, CancelToken, CommandRunner
@@ -35,13 +37,21 @@ class BuildSession:
         emit: Emit | None = None,
         app_destination: Path | None = None,
         platform: Platform | None = None,
+        renderer: str = DEFAULT_RENDERER,
+        rwgpu_dir: Path | None = None,
     ) -> None:
         """``platform`` defaults to ``vcbuilder.platform.current()``, which raises
-        ``UnsupportedPlatformError`` on an unsupported operating system."""
+        ``UnsupportedPlatformError`` on an unsupported operating system. ``renderer`` and
+        ``rwgpu_dir`` are the CLI's ``--renderer`` and ``--rwgpu-dir`` (Phase 2 design §7.1)."""
         self.platform = platform or platforms.current()
         self.locations = self.platform.locations(home or Path.home())
         self.app_destination = app_destination
+        self.renderer = get_renderer(renderer)
+        self.rwgpu_dir = rwgpu_dir
         self.log = BuildLog.create(self.locations.logs)
+        self.log.note(f"renderer: {self.renderer.name}")
+        if rwgpu_dir is not None:
+            self.log.note(f"development override: {rwgpu_dir}")
         self._listeners: list[Emit] = [self.log.write]
         if emit is not None:
             self._listeners.append(emit)
@@ -137,6 +147,8 @@ class BuildSession:
             emit=self._emit,
             cancel=cancel,
             app_destination=self.app_destination,
+            renderer=self.renderer,
+            rwgpu_dir=self.rwgpu_dir,
         )
         result = Pipeline(default_stages(), emit=self._emit, cancel=cancel).run(context, start=start, stop_after=stop_after)
         self.last_result = result

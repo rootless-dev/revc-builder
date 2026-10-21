@@ -11,12 +11,15 @@ from pathlib import Path
 from vcbuilder.errors import CompileError
 from vcbuilder.platform.base import Platform
 from vcbuilder.runner import CommandFailed, CommandRunner
+from vcbuilder.renderers import Overlay, apply_overlay
 from vcbuilder.sources import GIT, git_environment
 
 
 def configure_command(
-    platform: Platform, *, cmake: Path, ninja: Path, source: Path, build: Path, prefix: Path, arch: str
+    platform: Platform, *, cmake: Path, ninja: Path, source: Path, build: Path, prefix: Path, arch: str,
+    extra: dict[str, str] | None = None,
 ) -> list[str]:
+    """``extra``: further definitions, such as the renderer's (Phase 2 design, section 7.3)."""
     lib = prefix / "lib"
     definitions = {
         "CMAKE_BUILD_TYPE": "Release",
@@ -28,6 +31,7 @@ def configure_command(
         "mpg123_INCLUDE_DIR": str(prefix / "include"),
         "mpg123_LIBRARIES": str(lib / platform.shared_library_name("mpg123", "0")),
         **platform.revc_cmake_definitions(prefix, arch),
+        **(extra or {}),
     }
     return [str(cmake), "-S", str(source), "-B", str(build), "-G", "Ninja",
             *(f"-D{name}={value}" for name, value in definitions.items())]
@@ -38,13 +42,15 @@ def _git(runner: CommandRunner, repo: Path, *args: str, stage: str) -> None:
 
 
 def restore_and_patch(
-    checkout: Path, revc_commit: str, librw_commit: str, patches: list[Path], runner: CommandRunner, *, stage: str
+    checkout: Path, revc_commit: str, librw_commit: str, patches: list[Path], runner: CommandRunner, *, stage: str,
+    overlay: Overlay | None = None,
 ) -> None:
-    """Reset reVC and vendor/librw to their pins, then apply ``patches`` in file-name order.
+    """Reset reVC and vendor/librw to their pins, apply ``patches`` in file-name order, then
+    the renderer's ``overlay`` (Phase 2 design, section 7.3).
 
     The reset makes a retry start from pristine sources, so a patch is never applied twice.
-    ``git clean`` without ``-x`` and with a single ``-f`` removes files a patch added but
-    leaves the nested librw repository alone.
+    ``git clean`` without ``-x`` and with a single ``-f`` removes files a patch or the
+    overlay added but leaves the nested librw repository alone.
     """
     librw = checkout / "vendor" / "librw"
     try:
@@ -57,13 +63,16 @@ def restore_and_patch(
             _git(runner, checkout, "apply", "--whitespace=nowarn", str(patch), stage=stage)
     except CommandFailed as failure:
         raise CompileError(str(failure)) from failure
+    if overlay is not None:
+        apply_overlay(checkout, librw, overlay, runner, stage=stage)
 
 
 def build_revc(
     platform: Platform, *, cmake: Path, ninja: Path, source: Path, build: Path, prefix: Path, arch: str, env: dict[str, str],
-    runner: CommandRunner, stage: str,
+    runner: CommandRunner, stage: str, extra: dict[str, str] | None = None,
 ) -> Path:
-    command = configure_command(platform, cmake=cmake, ninja=ninja, source=source, build=build, prefix=prefix, arch=arch)
+    command = configure_command(platform, cmake=cmake, ninja=ninja, source=source, build=build, prefix=prefix, arch=arch,
+                                extra=extra)
     try:
         runner.run(command, stage=stage, env=env)
         runner.run([cmake, "--build", build, "--config", "Release"], stage=stage, env=env)

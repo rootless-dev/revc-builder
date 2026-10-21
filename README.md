@@ -9,7 +9,9 @@ the [reVC](https://github.com/mrxenginner/reVC) source code, compiles it on your
 installs `reVC.app`. You don't need to open the Terminal.
 
 The game renders through librw's OpenGL 3 backend. It runs natively on Apple silicon and
-on Intel Macs (Intel is expected to work but is not tested).
+on Intel Macs (Intel is expected to work but is not tested). A second renderer, written in
+Rust on [wgpu](https://wgpu.rs) (Metal on macOS), is available to developers with
+`--renderer wgpu`; see [The wgpu renderer](#the-wgpu-renderer).
 
 ## Screenshots
 
@@ -25,9 +27,11 @@ reVC built by reVC Builder, running natively on an Apple M3 Pro:
 - **You must own the game.** reVC Builder contains no game files, and it never downloads,
   uploads or shares them. It only reads the folder you choose and copies it into your own
   Library folder so the game keeps working if that folder goes away.
-- This repository contains **no reVC source code and no prebuilt reVC binaries**. The
-  Builder downloads the source at build time from pinned mirrors (`sources.lock`) and
-  checks that it is exactly the pinned version before using it.
+- This repository contains **no reVC source code and no prebuilt reVC binaries**, only
+  small patches applied to it (and, for the wgpu renderer, WGSL translations of three of
+  its shaders; see [Third-party notices](THIRD_PARTY_NOTICES.md)). The Builder downloads
+  the source at build time from pinned mirrors (`sources.lock`) and checks that it is
+  exactly the pinned version before using it.
 - The Builder app includes nothing from Rockstar Games or Take-Two Interactive: no logos,
   artwork, screenshots or fonts. The only game imagery in this repository is the
   screenshots in `docs/screenshots/`, which show the game running and are not part of the
@@ -149,6 +153,45 @@ installs the app into `DIR/Applications` unless `--applications` says otherwise.
 installed app still reads the real `~/Library/Application Support/reVC/reVC.ini`, so a
 `--home` install is for inspecting results, not for playing.
 
+### The wgpu renderer
+
+`--renderer wgpu` builds reVC with a new librw platform, `WGPU`, instead of OpenGL 3. A thin
+C++ driver (`renderers/wgpu/librw/files/src/wgpu`, adapted from librw's OpenGL 3 backend)
+forwards librw's rendering calls over a C ABI (`renderer/include/rwgpu.h`) to a Rust
+library (`renderer/rwgpu`) that renders with wgpu. reVC's game code is unchanged apart from
+small patches (`renderers/wgpu/revc/patches`). The design is in
+`docs/superpowers/specs/2026-10-21-phase2-wgpu-renderer-design.md`.
+
+Users never build Rust: CI builds the library as a universal static library and publishes
+it on releases tagged `rwgpu-v<version>`, and `sources.lock` pins its URL and SHA-256. Until
+the first such release exists, the lock entry is a placeholder and a wgpu build needs a
+locally built library:
+
+```sh
+renderer/build-universal.sh                     # needs rustup; the toolchain is pinned
+.venv/bin/python -m vcbuilder "/path/to/game" --renderer wgpu \
+    --rwgpu-dir renderer/target/dist/rwgpu-0.1.0  # or VCBUILDER_RWGPU_DIR=...
+```
+
+`RWGPU_ARCHS=arm64 renderer/build-universal.sh` builds only the arm64 slice, which is
+quicker for local work. The GUI always builds with the default renderer, OpenGL 3.
+Switching renderers replaces the installed `reVC.app`; on its first start the other
+renderer converts the game's textures again (`models/txd.img`).
+
+Both renderers can write frame dumps and frame statistics, which needs no screen-recording
+permission:
+
+| Variable | Effect |
+|---|---|
+| `REVC_FRAME_DUMP_DIR` | folder for `frame-NNNNNN.png` dumps |
+| `REVC_FRAME_DUMP_FRAMES` | frame numbers to dump, e.g. `100,500` (1 = first frame) |
+| `REVC_FRAME_STATS` | `N`: print the mean frame time every `N` frames to stderr |
+
+`tools/capture/capture.py` builds a renderer with a development-only reproducibility patch
+(fixed game clock, no input, scripted new game, cutscene skip and weather), runs scenes and
+compares frame dumps; see its help. Frame dumps show copyrighted game content: keep them out
+of the repository.
+
 ### Layout
 
 | Path | What it is |
@@ -156,18 +199,28 @@ installed app still reads the real `~/Library/Application Support/reVC/reVC.ini`
 | `vcbuilder/` | Build engine: validation, tools check, fetching, dependency and reVC builds, verification, installation, the typed event stream and the CLI. No GUI imports. |
 | `vcbuilder/platform/` | Everything that differs per operating system, behind one interface (`base.py`); `macos.py` is the only implementation, and `platform.current()` refuses other systems. |
 | `gui/` | The PySide6 wizard. It depends on `vcbuilder` only and runs all build work through `vcbuilder.session.BuildSession`. |
-| `sources.lock` | Pinned sources: reVC and librw commits with their mirrors, and the GLFW, OpenAL Soft and mpg123 release archives with their SHA-256. |
+| `sources.lock` | Pinned sources: reVC and librw commits with their mirrors, the GLFW, OpenAL Soft and mpg123 release archives with their SHA-256, and the prebuilt wgpu renderer. |
 | `patches/` | Patches applied on top of reVC, in file-name order. |
+| `renderers/` | Per-renderer overlays: files copied into reVC and librw, and patches applied after `patches/`. |
+| `renderer/` | The Rust wgpu renderer (`rwgpu`), its C header and the scripts that build the release archive. |
+| `tools/capture/` | Development-only capture harness for comparing renderers. |
 | `vcbuilder/data/required_files.txt` | Files a game folder must contain. |
 | `packaging/` | PyInstaller spec, icon and `build_app.sh`. |
 | `docs/screenshots/` | Screenshots of the game running, for this README. |
-| `docs/superpowers/specs/` | The design spec. |
+| `docs/superpowers/specs/` | The design specs (Phase 1: the Builder; Phase 2: the wgpu renderer). |
 
 ### Tests
 
 ```sh
 .venv/bin/python -m pytest              # unit and GUI tests; no network, no compiler
 .venv/bin/python -m pytest -m network   # checks every mirror and archive URL in sources.lock
+```
+
+The Rust renderer has its own tests (state handling, conversions, shader validation and
+the C ABI contract; no GPU needed):
+
+```sh
+(cd renderer && cargo test)
 ```
 
 One unit test also checks that `patches/` applies to the Builder's own reVC checkout in
@@ -209,7 +262,10 @@ on GitHub's macOS runners with python.org's universal2 Python:
 | **Tests** | `pytest` (unit and GUI tests, offscreen). |
 | **Pinned sources and reVC build** | `pytest -m network`, then the CLI from `fetch` to `verify` in a throwaway home: proves the pins, mirrors and patches still produce a verified `reVC.app`. No game files are used and the built app is not uploaded. |
 | **reVC Builder.app** | `packaging/build_app.sh`, checks the app is universal2, and uploads the zip as a workflow artifact. |
+| **wgpu renderer library** | `cargo test` in `renderer/`, `renderer/build-universal.sh` (arm64 and x86_64 joined with `lipo`), checks both architectures and the system-library list, and uploads the archive as a workflow artifact. |
+| **reVC build with the wgpu renderer** | The CLI from `fetch` to `verify` with `--renderer wgpu`, using the library the run just built. |
 | **GitHub release** | Only for tags `v*`: creates the release and attaches the zip. |
+| **wgpu renderer release** | Only for tags `rwgpu-v*`: creates a release, not marked Latest, with the renderer archive. |
 
 To publish a version, set `version` in `pyproject.toml` and `VERSION` in
 `packaging/revc_builder.spec` to the same number, commit, then tag and push:
@@ -221,11 +277,17 @@ git push origin v0.1.0
 
 The workflow refuses a tag that does not match the version in `pyproject.toml`.
 
+To publish a renderer version, set `version` in `renderer/rwgpu/Cargo.toml`, commit, and
+push the tag `rwgpu-v<version>`. When the release exists, download its archive, put its
+URL and SHA-256 (`shasum -a 256`) into the `rwgpu` entry of `sources.lock`, drop
+`placeholder = true`, and commit before tagging the next Builder release.
+
 ### Changing a pin
 
 Before moving `sources.lock` to a different reVC commit, re-check the facts the design
 relies on (spec section 3, F1–F6) against that commit, make sure `patches/` still apply,
-and run `pytest -m network`.
+and run `pytest -m network`. The renderer overlays in `renderers/` must apply as well; a
+unit test checks them against the Builder's reVC checkout when there is one.
 
 ## License
 

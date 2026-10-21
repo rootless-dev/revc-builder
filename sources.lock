@@ -49,3 +49,19 @@ urls = [
     "https://downloads.sourceforge.net/project/mpg123/mpg123/1.33.7/mpg123-1.33.7.tar.bz2",
 ]
 sha256 = "31d0e35a4ca567ec9b5ebda6c3062bb4435d6d3eacd6ef0d95cadd7854dc03ee"
+
+[sources.rwgpu]
+type = "archive"
+# The prebuilt wgpu renderer (Phase 2 design, section 7.2): a universal static library and
+# its C header, built by this repository's CI and published as the asset of a release
+# tagged rwgpu-v<version>. Only builds with --renderer wgpu on macOS use it.
+# PLACEHOLDER: no such release exists yet, so the URL does not resolve and the SHA-256 is
+# all zeros; the Builder never downloads a placeholder (a wgpu build then needs
+# --rwgpu-dir). After the first rwgpu-v0.1.0 release, put the asset's SHA-256 here and
+# remove `placeholder`.
+renderer = "wgpu"
+platform = "macos"
+version = "0.1.0"
+urls = ["https://github.com/rootless-dev/revc-builder/releases/download/rwgpu-v0.1.0/rwgpu-0.1.0-macos-universal.tar.gz"]
+sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+placeholder = true

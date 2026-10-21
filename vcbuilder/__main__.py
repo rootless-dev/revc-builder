@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 from vcbuilder.errors import BuildError
 from vcbuilder.events import Event, LogLine, Progress, StageFailed, StageFinished, StageStarted
 from vcbuilder.pipeline import STAGE_IDS
+from vcbuilder.renderers import DEFAULT_RENDERER, RENDERERS
 from vcbuilder.session import BuildSession
 
 
@@ -80,6 +82,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="install the app in this folder (default: the platform's applications folder; on macOS "
         "/Applications, or ~/Applications when it is not writable)",
     )
+    parser.add_argument(
+        "--renderer",
+        choices=sorted(RENDERERS),
+        default=DEFAULT_RENDERER,
+        help=f"the renderer to build reVC with (default: {DEFAULT_RENDERER}); wgpu is the Rust/wgpu renderer",
+    )
+    parser.add_argument(
+        "--rwgpu-dir",
+        type=Path,
+        help="development: use the rwgpu library in this folder (lib/librwgpu.a, lib/link-libs.txt, "
+        "include/rwgpu.h, as renderer/build-universal.sh makes) instead of the pinned download; "
+        "the environment variable VCBUILDER_RWGPU_DIR does the same",
+    )
     return parser
 
 
@@ -89,8 +104,14 @@ def main(argv: list[str] | None = None) -> int:
     app_destination = args.applications
     if app_destination is None and args.home is not None:
         app_destination = args.home / "Applications"
+    rwgpu_dir = args.rwgpu_dir
+    if rwgpu_dir is None and os.environ.get("VCBUILDER_RWGPU_DIR"):
+        rwgpu_dir = Path(os.environ["VCBUILDER_RWGPU_DIR"])
+    if rwgpu_dir is not None:
+        rwgpu_dir = rwgpu_dir.expanduser().resolve()
     try:
-        session = BuildSession(home=args.home, emit=printer, app_destination=app_destination)
+        session = BuildSession(home=args.home, emit=printer, app_destination=app_destination,
+                               renderer=args.renderer, rwgpu_dir=rwgpu_dir)
     except BuildError as error:
         print(f"ERROR: {error.user_message}", file=sys.stderr)
         return 1

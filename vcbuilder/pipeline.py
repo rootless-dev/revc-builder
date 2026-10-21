@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 from vcbuilder import compile as compile_stage
-from vcbuilder import deps, install, sources
+from vcbuilder import deps, install, renderers, sources
 from vcbuilder.errors import BuildError, IncompleteGameError, InstallOverlapError, NotGameFolderError
 from vcbuilder.events import Emit, Event, LogLine, Progress, StageFailed, StageFinished, StageStarted
 from vcbuilder.gamefiles import ValidationResult, ValidationStatus, validate_game_folder
@@ -102,6 +102,9 @@ class BuildContext:
     arch: str = ""
     #: Where to install the app instead of the platform's default (CLI ``--applications``).
     app_destination: Path | None = None
+    renderer: renderers.Renderer = renderers.RENDERERS[renderers.DEFAULT_RENDERER]
+    #: Development override: a locally built rwgpu library directory (CLI ``--rwgpu-dir``).
+    rwgpu_dir: Path | None = None
     sleep: Callable[[float], None] = time.sleep
     validation: ValidationResult | None = None
     installed_app: Path | None = None
@@ -112,8 +115,12 @@ class BuildContext:
             self.arch = self.platform.host_architecture()
 
     @property
+    def revc_build(self) -> Path:
+        return self.locations.revc_build_for(self.renderer.name)
+
+    @property
     def built_app(self) -> Path:
-        return self.platform.built_app(self.locations.revc_build)
+        return self.platform.built_app(self.revc_build)
 
     def progress(self, stage: str, fraction: float | None, message: str = "") -> None:
         self.emit(Progress(stage, fraction, message))
@@ -178,10 +185,13 @@ def extracted_source(locations: Locations, archive: sources.ArchiveSource) -> Pa
 
 def stage_fetch(context: BuildContext) -> None:
     locations, runner = context.locations, context.runner
-    steps = 1 + len(context.lock.archives)
+    archives = renderers.archives_to_fetch(
+        context.lock, context.renderer, context.platform.lock_platform, override=context.rwgpu_dir
+    )
+    steps = 1 + len(archives)
     context.progress("fetch", 0.0, "reVC")
     sources.fetch_revc(context.lock.revc, context.lock.librw, locations.revc_checkout, runner, stage="fetch")
-    for index, archive in enumerate(context.lock.archives, start=1):
+    for index, archive in enumerate(archives, start=1):
         context.cancel.raise_if_cancelled()
         context.progress("fetch", index / steps, f"{archive.name} {archive.version}")
         downloaded = sources.fetch_archive(archive, locations.downloads, runner=runner, stage="fetch")
@@ -218,8 +228,25 @@ def stage_deps(context: BuildContext) -> None:
     deps.verify_prefix(context.locations.prefix, context.platform, context.runner, stage="deps")
 
 
+def rwgpu_library(context: BuildContext) -> renderers.RwgpuLibrary | None:
+    """The prebuilt renderer library the build links: the override or the pinned archive."""
+    if not context.renderer.needs_rwgpu:
+        return None
+    if context.rwgpu_dir is not None:
+        context.log("compile", f"Using the development override for the renderer library: {context.rwgpu_dir}")
+        return renderers.rwgpu_library(context.rwgpu_dir, context.platform)
+    archive = context.lock.renderer_library(context.renderer.name, context.platform.lock_platform)
+    if archive is None or archive.placeholder:
+        raise renderers.RendererUnavailableError(f"no published rwgpu library for {context.platform.lock_platform}")
+    root = extracted_source(context.locations, archive)
+    if root is None:
+        raise BuildError(f"{archive.name} has not been fetched; run the fetch stage first")
+    return renderers.rwgpu_library(root, context.platform)
+
+
 def stage_compile(context: BuildContext) -> None:
     locations = context.locations
+    library = rwgpu_library(context)
     compile_stage.restore_and_patch(
         locations.revc_checkout,
         context.lock.revc.commit,
@@ -227,23 +254,26 @@ def stage_compile(context: BuildContext) -> None:
         context.patches,
         context.runner,
         stage="compile",
+        overlay=renderers.overlay_for(context.renderer),
     )
     compile_stage.build_revc(
         context.platform,
         cmake=cmake_executable(),
         ninja=ninja_executable(),
         source=locations.revc_checkout,
-        build=locations.revc_build,
+        build=context.revc_build,
         prefix=locations.prefix,
         arch=context.arch,
         env=context.platform.build_environment(),
         runner=context.runner,
         stage="compile",
+        extra=renderers.cmake_definitions(context.renderer, library),
     )
 
 
 def stage_verify(context: BuildContext) -> None:
     context.platform.verify_app(context.built_app, context.runner, stage="verify")
+    context.platform.verify_renderer(context.built_app, context.renderer.name, context.runner, stage="verify")
 
 
 def stage_install(context: BuildContext) -> None:

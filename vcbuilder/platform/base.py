@@ -35,6 +35,8 @@ class ToolsStatus(Enum):
 
 class Platform(ABC):
     name: str
+    #: The ``platform`` value of this platform's entries in ``sources.lock``.
+    lock_platform: str
 
     # --- installed layout ---------------------------------------------------------------
 
@@ -134,3 +136,13 @@ class Platform(ABC):
     @abstractmethod
     def verify_app(self, app: Path, runner: CommandRunner, *, stage: str) -> None:
         """Stage 6: raise ``BundleError`` unless the built app is self-contained and valid."""
+
+    # --- renderers (Phase 2 design, section 7) ----------------------------------------------
+
+    @abstractmethod
+    def static_library_name(self, stem: str) -> str:
+        """File name of a static library, e.g. ``librwgpu.a``."""
+
+    @abstractmethod
+    def verify_renderer(self, app: Path, renderer: str, runner: CommandRunner, *, stage: str) -> None:
+        """Stage 6: raise ``CompileError`` unless the app uses ``renderer``'s graphics API."""

@@ -1,0 +1,123 @@
+Frame dumps and frame statistics for librw's OpenGL 3 backend, matching the wgpu
+renderer's (Phase 2 design, section 9). Inert unless REVC_FRAME_DUMP_DIR or
+REVC_FRAME_STATS is set. Applied inside vendor/librw by reVC Builder.
+
+diff --git a/src/gl/gl3device.cpp b/src/gl/gl3device.cpp
+index 6a4c8dd..2da850b 100644
+--- a/src/gl/gl3device.cpp
++++ b/src/gl/gl3device.cpp
+@@ -15,6 +15,8 @@
+ #include "rwgl3.h"
+ #include "rwgl3shader.h"
+ #include "rwgl3impl.h"
++#include "../lodepng/lodepng.h"
++#include <time.h>
+ 
+ #define PLUGIN_ID 0
+ 
+@@ -1400,12 +1402,105 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
+ 		glDisable(GL_SCISSOR_TEST);
+ }
+ 
++/*
++ * reVC Builder: frame dumps and frame statistics, the same as the wgpu renderer's
++ * (Phase 2 design, section 9). Inert unless the environment variables are set:
++ *   REVC_FRAME_DUMP_DIR     directory for frame-NNNNNN.png dumps
++ *   REVC_FRAME_DUMP_FRAMES  comma-separated frame numbers (1 = first presented frame)
++ *   REVC_FRAME_STATS        N: print the mean frame interval every N frames to stderr
++ */
++static struct {
++	bool initialised;
++	const char *dir;
++	const char *frames;
++	uint64_t statsEvery;
++	uint64_t count;
++	double windowStart;
++	uint64_t windowStartFrame;
++} frameDump;
++
++static double
++frameDumpNow(void)
++{
++	struct timespec ts;
++	clock_gettime(CLOCK_MONOTONIC, &ts);
++	return ts.tv_sec*1000.0 + ts.tv_nsec/1000000.0;
++}
++
++static bool
++frameDumpWanted(uint64_t frame)
++{
++	const char *p = frameDump.frames;
++	while(p && *p){
++		char *end;
++		unsigned long long n = strtoull(p, &end, 10);
++		if(end != p && n == frame)
++			return true;
++		p = strchr(p, ',');
++		if(p) p++;
++	}
++	return false;
++}
++
++static void
++frameDumpBeforeSwap(void)
++{
++	if(!frameDump.initialised){
++		frameDump.initialised = true;
++		frameDump.dir = getenv("REVC_FRAME_DUMP_DIR");
++		if(frameDump.dir && frameDump.dir[0] == '\0')
++			frameDump.dir = nil;
++		frameDump.frames = getenv("REVC_FRAME_DUMP_FRAMES");
++		const char *stats = getenv("REVC_FRAME_STATS");
++		frameDump.statsEvery = stats ? strtoull(stats, nil, 10) : 0;
++	}
++	uint64_t frame = ++frameDump.count;
++
++	if(frameDump.dir && frameDumpWanted(frame)){
++		int w, h;
++		glfwGetFramebufferSize(glGlobals.window, &w, &h);
++		uint8 *px = (uint8*)malloc((size_t)w*h*3);
++		uint8 *flipped = (uint8*)malloc((size_t)w*h*3);
++		bindFramebuffer(0);
++		glReadBuffer(GL_BACK);
++		glPixelStorei(GL_PACK_ALIGNMENT, 1);
++		glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px);
++		for(int y = 0; y < h; y++)
++			memcpy(flipped + (size_t)y*w*3, px + (size_t)(h-1-y)*w*3, (size_t)w*3);
++		char path[1024];
++		snprintf(path, sizeof(path), "%s/frame-%06llu.png", frameDump.dir, (unsigned long long)frame);
++		if(lodepng_encode24_file(path, flipped, w, h) == 0)
++			fprintf(stderr, "gl3: wrote %s\n", path);
++		else
++			fprintf(stderr, "gl3: frame dump failed: %s\n", path);
++		free(px);
++		free(flipped);
++	}
++
++	if(frameDump.statsEvery){
++		double now = frameDumpNow();
++		if(frameDump.windowStartFrame == 0){
++			frameDump.windowStart = now;
++			frameDump.windowStartFrame = frame;
++		}
++		if(frame % frameDump.statsEvery == 0 && frame > frameDump.windowStartFrame){
++			double avg = (now - frameDump.windowStart)/(double)(frame - frameDump.windowStartFrame);
++			fprintf(stderr, "frame-stats: frames=%llu avg_ms=%.3f fps=%.1f\n",
++				(unsigned long long)frame, avg, avg > 0.0 ? 1000.0/avg : 0.0);
++			frameDump.windowStart = now;
++			frameDump.windowStartFrame = frame;
++		}
++	}
++}
++
+ static void
+ showRaster(Raster *raster, uint32 flags)
+ {
+ //	glViewport(raster->offsetX, raster->offsetY,
+ //		raster->width, raster->height);
+ 
++	frameDumpBeforeSwap();
++
+ #ifdef LIBRW_SDL2
+ 	if(flags & Raster::FLIPWAITVSYNCH)
+ 		SDL_GL_SetSwapInterval(1);
