@@ -1,0 +1,418 @@
+Builds reVC on librw's WGPU platform (Phase 2 design, section 8): the GLFW skeleton and
+input code paths for RW_WGPU, txd.img conversion as with GL3, the colour filter and screen
+droplets through the renderer's Im2D override shaders, the custom pipelines of
+src/extras/custompipes_wgpu.cpp, and NEW_RENDERER kept off. Applied by reVC Builder.
+
+diff --git a/src/core/ControllerConfig.cpp b/src/core/ControllerConfig.cpp
+index 372001d..7e1f835 100644
+--- a/src/core/ControllerConfig.cpp
++++ b/src/core/ControllerConfig.cpp
+@@ -52,7 +52,7 @@ void CControllerConfigManager::MakeControllerActionsBlank()
+ 	}
+ }
+ 
+-#ifdef RW_GL3
++#if defined RW_GL3 || defined RW_WGPU
+ int MapIdToButtonId(int mapId) {
+ #ifndef LIBRW_SDL2
+ 	switch (mapId) {
+@@ -146,7 +146,7 @@ int32 CControllerConfigManager::GetJoyButtonJustDown()
+ 		if (m_NewState.rgbButtons[i] & 0x80 && !(m_OldState.rgbButtons[i] & 0x80))
+ 			return i + 1;
+ 	}
+-#elif defined RW_GL3
++#elif defined RW_GL3 || defined RW_WGPU
+ 	if (m_NewState.isGamepad) {
+ 		for (int32 i = 0; i < MAX_BUTTONS; i++) {
+ 			if (m_NewState.mappedButtons[i] && !(m_OldState.mappedButtons[i]))
+@@ -2851,7 +2851,7 @@ void CControllerConfigManager::UpdateJoyButtonState(int32 padnumber)
+ 		else
+ 			m_aButtonStates[i] = false;
+ 	}
+-#elif defined RW_GL3
++#elif defined RW_GL3 || defined RW_WGPU
+ 	if (m_NewState.isGamepad) {
+ 		for (int32 i = 0; i < MAX_BUTTONS; i++) {
+ #ifndef LIBRW_SDL2
+diff --git a/src/core/ControllerConfig.h b/src/core/ControllerConfig.h
+index 8c1c530..2b09ac1 100644
+--- a/src/core/ControllerConfig.h
++++ b/src/core/ControllerConfig.h
+@@ -109,7 +109,7 @@ class CControllerState;
+ 
+ #define ACTIONNAME_LENGTH 40
+ 
+-#ifdef RW_GL3
++#if defined RW_GL3 || defined RW_WGPU
+ struct JoyState {
+     int8 id;
+     bool isGamepad;
+@@ -135,7 +135,7 @@ public:
+ 	};
+ 
+ 	bool                  m_bFirstCapture;
+-#if defined RW_GL3
++#if defined RW_GL3 || defined RW_WGPU
+     JoyState              m_OldState;
+     JoyState              m_NewState;
+ #else
+@@ -227,7 +227,7 @@ public:
+ 	void  ResetSettingOrder                   (e_ControllerAction action);
+ };
+ 
+-#ifndef RW_GL3
++#if !(defined RW_GL3 || defined RW_WGPU)
+ VALIDATE_SIZE(CControllerConfigManager, 0x143C);
+ #endif
+ 
+diff --git a/src/core/Frontend.cpp b/src/core/Frontend.cpp
+index fe015f4..2b53334 100644
+--- a/src/core/Frontend.cpp
++++ b/src/core/Frontend.cpp
+@@ -4936,7 +4936,7 @@ CMenuManager::ProcessUserInput(uint8 goDown, uint8 goUp, uint8 optionSelected, u
+ 					ControlsManager.MakeControllerActionsBlank();
+ 					ControlsManager.InitDefaultControlConfiguration();
+ 					ControlsManager.InitDefaultControlConfigMouse(MousePointerStateHelper.GetMouseSetUp());
+-#if !defined RW_GL3
++#if !(defined RW_GL3 || defined RW_WGPU)
+ 					if (AllValidWinJoys.m_aJoys[JOYSTICK1].m_bInitialised) {
+ 						DIDEVCAPS devCaps;
+ 						devCaps.dwSize = sizeof(DIDEVCAPS);
+diff --git a/src/core/MenuScreensCustom.cpp b/src/core/MenuScreensCustom.cpp
+index ca3db58..113d35f 100644
+--- a/src/core/MenuScreensCustom.cpp
++++ b/src/core/MenuScreensCustom.cpp
+@@ -297,7 +297,7 @@ int cachedButtonNum = -1;
+ 
+ wchar* DetectJoystickDraw(bool* disabled, bool userHovering) {
+ 
+-#if defined RW_GL3 && !defined LIBRW_SDL2
++#if (defined RW_GL3 || defined RW_WGPU) && !defined LIBRW_SDL2
+ 	int numButtons;
+ 	int found = -1;
+ 	const char *joyname;
+diff --git a/src/core/Radar.cpp b/src/core/Radar.cpp
+index 4e15559..f5d3df0 100644
+--- a/src/core/Radar.cpp
++++ b/src/core/Radar.cpp
+@@ -1117,7 +1117,7 @@ CRadar::LoadTextures()
+ 					|| (x2 < 1 && y2 == 1)) // one pixel on each side of second to first/last line is transparent
+ 					pixels[x + y * 16] = 0;
+ 				else if((x2 == 2 && y2 >= 2)|| (y2 == 2 && x2 >= 2) )// colored square inside
+-#ifdef RW_GL3
++#if defined RW_GL3 || defined RW_WGPU
+ 					pixels[x + y * 16] = WAYPOINT_R | (WAYPOINT_G << 8) | (WAYPOINT_B << 16) | (255 << 24);
+ #else
+ 					pixels[x + y * 16] = WAYPOINT_B | (WAYPOINT_G << 8) | (WAYPOINT_R << 16) | (255 << 24);
+diff --git a/src/core/config.h b/src/core/config.h
+index 7329544..7411069 100644
+--- a/src/core/config.h
++++ b/src/core/config.h
+@@ -346,10 +346,10 @@ enum Config {
+ //#define DISABLE_CUTSCENE_SHADOWS
+ 
+ // Pad
+-#if !defined(RW_GL3) && defined(_WIN32)
++#if !(defined(RW_GL3) || defined(RW_WGPU)) && defined(_WIN32)
+ #define XINPUT
+ #endif
+-#if defined XINPUT || (defined RW_GL3 && !defined LIBRW_SDL2 && !defined GTA_HANDHELD)
++#if defined XINPUT || ((defined RW_GL3 || defined RW_WGPU) && !defined LIBRW_SDL2 && !defined GTA_HANDHELD)
+ #define DETECT_JOYSTICK_MENU // Then we'll expect user to enter Controller->Detect joysticks if his joystick isn't detected at the start.
+ #endif
+ #define DETECT_PAD_INPUT_SWITCH // Adds automatic switch of pad related stuff between controller and kb/m
+diff --git a/src/core/main.cpp b/src/core/main.cpp
+index a412a98..0fb92d7 100644
+--- a/src/core/main.cpp
++++ b/src/core/main.cpp
+@@ -1112,6 +1112,8 @@ DisplayGameDebugText()
+ 		    "D3D8 "
+ #elif defined RW_GL3
+ 		    "OpenGL "
++#elif defined RW_WGPU
++		    "wgpu "
+ #endif
+ #if defined AUDIO_OAL
+ 		    "OAL "
+@@ -1579,7 +1581,7 @@ Idle(void *arg)
+ 	if(!FrontEndMenuManager.m_bMenuActive && TheCamera.GetScreenFadeStatus() != FADE_2)
+ 	{
+ 		// This is from SA, but it's nice for windowed mode
+-#if defined(GTA_PC) && !defined(RW_GL3)
++#if defined(GTA_PC) && !(defined(RW_GL3) || defined(RW_WGPU))
+ 		RwV2d pos;
+ 		pos.x = SCREEN_WIDTH / 2.0f;
+ 		pos.y = SCREEN_HEIGHT / 2.0f;
+diff --git a/src/core/re3.cpp b/src/core/re3.cpp
+index d16088f..08152d1 100644
+--- a/src/core/re3.cpp
++++ b/src/core/re3.cpp
+@@ -576,8 +576,10 @@ bool LoadINISettings()
+ #endif
+ 	ReadIniIfExists("Rendering", "BackfaceCulling", &gBackfaceCulling);
+ #ifdef NEW_RENDERER
++#ifndef RW_WGPU	// the new renderer is not ported to the wgpu renderer
+ 	ReadIniIfExists("Rendering", "NewRenderer", &gbNewRenderer);
+ #endif
++#endif
+ 
+ #ifdef PROPER_SCALING
+ 	ReadIniIfExists("Draw", "ProperScaling", &CDraw::ms_bProperScaling);	
+@@ -685,8 +687,10 @@ void SaveINISettings()
+ #endif
+ 	StoreIni("Rendering", "BackfaceCulling", gBackfaceCulling);
+ #ifdef NEW_RENDERER
++#ifndef RW_WGPU
+ 	StoreIni("Rendering", "NewRenderer", gbNewRenderer);
+ #endif
++#endif
+ 
+ #ifdef PROPER_SCALING	
+ 	StoreIni("Draw", "ProperScaling", CDraw::ms_bProperScaling);	
+@@ -1072,7 +1076,9 @@ DebugMenuPopulate(void)
+ 		DebugMenuAddVarBool8("Render", "VSynch", &FrontEndMenuManager.m_PrefsVsync, nil);
+ 		DebugMenuAddVar("Render", "Max FPS", &RsGlobal.maxFPS, nil, 1, 1, 1000, nil);
+ #ifdef NEW_RENDERER
++#ifndef RW_WGPU
+ 		DebugMenuAddVarBool8("Render", "New Renderer", &gbNewRenderer, nil);
++#endif
+ extern bool gbRenderRoads;
+ extern bool gbRenderEverythingBarRoads;
+ extern bool gbRenderFadingInUnderwaterEntities;
+diff --git a/src/extras/custompipes.cpp b/src/extras/custompipes.cpp
+index a485138..7c1b354 100644
+--- a/src/extras/custompipes.cpp
++++ b/src/extras/custompipes.cpp
+@@ -505,6 +505,9 @@ CustomPipeRegister(void)
+ #ifdef RW_OPENGL
+ 	CustomPipeRegisterGL();
+ #endif
++#ifdef RW_WGPU
++	CustomPipeRegisterWGPU();
++#endif
+ 
+ 	CustomMatOffset = rw::Material::registerPlugin(sizeof(CustomMatExt), MAKECHUNKID(rwVENDORID_ROCKSTAR, 0x80),
+ 		CustomMatCtor, nil, CustomMatCopy);
+diff --git a/src/extras/custompipes.h b/src/extras/custompipes.h
+index 8def522..1dab5ff 100644
+--- a/src/extras/custompipes.h
++++ b/src/extras/custompipes.h
+@@ -72,6 +72,7 @@ char *ReadTweakValueTable(char *fp, InterpolatedValue &interp);
+ 
+ void CustomPipeRegister(void);
+ void CustomPipeRegisterGL(void);
++void CustomPipeRegisterWGPU(void);
+ void CustomPipeInit(void);
+ void CustomPipeShutdown(void);
+ void SetTxdFindCallback(void);
+diff --git a/src/extras/postfx.cpp b/src/extras/postfx.cpp
+index ee6c396..fe63a0d 100644
+--- a/src/extras/postfx.cpp
++++ b/src/extras/postfx.cpp
+@@ -35,6 +35,17 @@ int32 u_contrastMult;
+ rw::gl3::Shader *colourFilterVC;
+ rw::gl3::Shader *contrast;
+ #endif
++#ifdef RW_WGPU
++// Im2D override shaders of the wgpu renderer; created once, never destroyed.
++static rw::uint32 colourFilterVC_wgpu;
++static rw::uint32 contrast_wgpu;
++static const char *colourFilterVC_wgsl =
++#include "shaders/wgpu/colourfilterVC.wgsl.inc"
++;
++static const char *contrast_wgsl =
++#include "shaders/wgpu/contrast.wgsl.inc"
++;
++#endif
+ 
+ void
+ CPostFX::InitOnce(void)
+@@ -173,6 +184,12 @@ CPostFX::Open(RwCamera *cam)
+ 	}
+ 
+ #endif
++#ifdef RW_WGPU
++	if(colourFilterVC_wgpu == 0)
++		colourFilterVC_wgpu = rw::wgpu::im2DCreateShader(colourFilterVC_wgsl);
++	if(contrast_wgpu == 0)
++		contrast_wgpu = rw::wgpu::im2DCreateShader(contrast_wgsl);
++#endif
+ }
+ 
+ void
+@@ -287,6 +304,10 @@ CPostFX::RenderOverlayShader(RwCamera *cam, int32 r, int32 g, int32 b, int32 a)
+ 		contrast->use();
+ 		glUniform3fv(contrast->uniformLocations[u_contrastMult], 1, mult);
+ 		glUniform3fv(contrast->uniformLocations[u_contrastAdd], 1, add);
++#endif
++#ifdef RW_WGPU
++		float params[16] = { mult[0], mult[1], mult[2], 0.0f, add[0], add[1], add[2], 0.0f };
++		rw::wgpu::im2DSetOverride(contrast_wgpu, params);
+ #endif
+ 	}else{
+ 		float f = Intensity;
+@@ -303,6 +324,10 @@ CPostFX::RenderOverlayShader(RwCamera *cam, int32 r, int32 g, int32 b, int32 a)
+ 		rw::gl3::im2dOverrideShader = colourFilterVC;
+ 		colourFilterVC->use();
+ 		glUniform4fv(colourFilterVC->uniformLocations[u_blurcolor], 1, blurcolors);
++#endif
++#ifdef RW_WGPU
++		float params[16] = { blurcolors[0], blurcolors[1], blurcolors[2], blurcolors[3] };
++		rw::wgpu::im2DSetOverride(colourFilterVC_wgpu, params);
+ #endif
+ 	}
+ 	RwIm2DRenderIndexedPrimitive(rwPRIMTYPETRILIST, Vertex, 4, Index, 6);
+@@ -312,6 +337,9 @@ CPostFX::RenderOverlayShader(RwCamera *cam, int32 r, int32 g, int32 b, int32 a)
+ #ifdef RW_OPENGL
+ 	rw::gl3::im2dOverrideShader = nil;
+ #endif
++#ifdef RW_WGPU
++	rw::wgpu::im2DSetOverride(0, nil);
++#endif
+ }
+ 
+ void
+diff --git a/src/extras/screendroplets.cpp b/src/extras/screendroplets.cpp
+index cc86808..7aac9ec 100644
+--- a/src/extras/screendroplets.cpp
++++ b/src/extras/screendroplets.cpp
+@@ -60,6 +60,13 @@ static void *screenDroplet_PS;
+ #ifdef RW_GL3
+ static rw::gl3::Shader *screenDroplet;
+ #endif
++#ifdef RW_WGPU
++// Im2D override shader of the wgpu renderer; created once, never destroyed.
++static rw::uint32 screenDroplet_wgpu;
++static const char *screenDroplet_wgsl =
++#include "shaders/wgpu/screenDroplet.wgsl.inc"
++;
++#endif
+ 
+ // platform specific
+ static void openim2d_uv2(void);
+@@ -126,6 +133,10 @@ ScreenDroplets::InitDraw(void)
+ 	assert(screenDroplet);
+ 	}
+ #endif
++#ifdef RW_WGPU
++	if(screenDroplet_wgpu == 0)
++		screenDroplet_wgpu = rw::wgpu::im2DCreateShader(screenDroplet_wgsl);
++#endif
+ 
+ 	ms_initialised = 1;
+ }
+@@ -214,6 +225,10 @@ ScreenDroplets::Render(void)
+ 	rw::gl3::im2dOverrideShader = screenDroplet;
+ 	rw::gl3::setTexture(1, ms_screenTex);
+ #endif
++#ifdef RW_WGPU
++	rw::wgpu::im2DSetOverride(screenDroplet_wgpu, nil);
++	rw::wgpu::setTexture(1, ms_screenTex);
++#endif
+ 
+ 	RenderBuffer::ClearRenderBuffer();
+ 	for(drop = &ms_drops[0]; drop < &ms_drops[MAXDROPS]; drop++)
+@@ -229,6 +244,10 @@ ScreenDroplets::Render(void)
+ 	rw::gl3::im2dOverrideShader = nil;
+ 	rw::gl3::setTexture(1, nil);
+ #endif
++#ifdef RW_WGPU
++	rw::wgpu::im2DSetOverride(0, nil);
++	rw::wgpu::setTexture(1, nil);
++#endif
+ 
+ 	RwRenderStateSet(rwRENDERSTATEFOGENABLE, FALSE);
+ 	RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)TRUE);
+@@ -814,4 +833,16 @@ RenderIndexedPrimitive_UV2(RwPrimitiveType primType, Im2DVertexUV2 *vertices, Rw
+ }
+ #endif
+ 
++#ifdef RW_WGPU
++static void openim2d_uv2(void) {}
++static void closeim2d_uv2(void) {}
++
++static void
++RenderIndexedPrimitive_UV2(RwPrimitiveType primType, Im2DVertexUV2 *vertices, RwInt32 numVertices, RwImVertexIndex *indices, RwInt32 numIndices)
++{
++	rw::wgpu::im2DRenderIndexedPrimitiveUV2((rw::PrimitiveType)primType, (rw::wgpu::Im2DVertexUV2*)vertices,
++		numVertices, indices, numIndices);
++}
++#endif
++
+ #endif
+diff --git a/src/rw/TexRead.cpp b/src/rw/TexRead.cpp
+index 9b190a4..1947dc5 100644
+--- a/src/rw/TexRead.cpp
++++ b/src/rw/TexRead.cpp
+@@ -193,6 +193,9 @@ GetGPUcaps(GPUcaps *caps)
+ 	caps->subplatform = rw::gl3::gl3Caps.gles;
+ 	caps->dxtSupport = rw::gl3::gl3Caps.dxtSupported;
+ #endif
++#ifdef RW_WGPU
++	caps->dxtSupport = rw::wgpu::caps.dxtSupported;
++#endif
+ #ifdef RW_D3D9
+ 	caps->dxtSupport = 1;	// TODO, probably
+ #endif
+@@ -297,7 +300,7 @@ CanVideoCardDoDXT(void)
+ {
+ #ifdef LIBRW
+ 	// TODO
+-#ifdef RW_OPENGL
++#if defined RW_OPENGL || defined RW_WGPU
+ 	return false;
+ #else
+ 	return true;
+@@ -401,6 +404,9 @@ CreateTxdImageForVideoCard()
+ 	// so let's hope that is the case for all
+ 	rw::gl3::needToReadBackTextures = true;
+ #endif
++#ifdef RW_WGPU
++	rw::wgpu::needToReadBackTextures = true;
++#endif
+ 	
+ #ifdef DISABLE_VSYNC_ON_TEXTURE_CONVERSION
+ 	// let's disable vsync and frame limiter to speed up texture conversion
+@@ -440,6 +446,9 @@ CreateTxdImageForVideoCard()
+ 					CStreaming::RemoveTxd(i);
+ #ifdef RW_GL3
+ 					rw::gl3::needToReadBackTextures = false;
++#endif
++#ifdef RW_WGPU
++					rw::wgpu::needToReadBackTextures = false;
+ #endif
+ 					return false;
+ 				}
+@@ -476,6 +485,9 @@ CreateTxdImageForVideoCard()
+ #ifdef RW_GL3
+ 	rw::gl3::needToReadBackTextures = false;
+ #endif
++#ifdef RW_WGPU
++	rw::wgpu::needToReadBackTextures = false;
++#endif
+ 
+ 	if (!pDir->WriteDirFile("models\\txd.dir")) {
+ 		DealWithTxdWriteError(i, TXDSTORESIZE, "CVT_ERR");
+diff --git a/src/skel/crossplatform.h b/src/skel/crossplatform.h
+index 8b617b5..7f23671 100644
+--- a/src/skel/crossplatform.h
++++ b/src/skel/crossplatform.h
+@@ -69,7 +69,7 @@ int _caserename(const char *old_filename, const char *new_filename);
+ #define caserename _caserename
+ #endif
+ 
+-#if defined(RW_GL3)
++#if defined(RW_GL3) || defined(RW_WGPU)
+ typedef struct
+ {
+ #if defined(LIBRW_SDL2)
+diff --git a/src/skel/glfw/glfw.cpp b/src/skel/glfw/glfw.cpp
+index 9cbfc75..b4886ee 100644
+--- a/src/skel/glfw/glfw.cpp
++++ b/src/skel/glfw/glfw.cpp
+@@ -1,4 +1,4 @@
+-#if defined RW_GL3 && !defined LIBRW_SDL2
++#if (defined RW_GL3 || defined RW_WGPU) && !defined LIBRW_SDL2
+ 
+ #ifdef _WIN32
+ #include <shlobj.h>

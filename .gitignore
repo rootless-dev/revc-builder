@@ -17,10 +17,10 @@ dist/
 *.dmg
 
 # Never commit game data, reVC source or prebuilt reVC binaries
-reVC/
-reVC.app/
-vendor/
-gamefiles/
+/reVC/
+/reVC.app/
+/vendor/
+/gamefiles/
 *.img
 *.dir
 *.adf
