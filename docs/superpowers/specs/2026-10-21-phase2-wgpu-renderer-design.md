@@ -754,3 +754,10 @@ commit before tagging a Builder release `v*`.
   - The default stays `gl3`: A1–A5 pass, but `sources.lock` pins a placeholder, so the
     second condition of §10 is not met until an `rwgpu-v0.1.0` release exists and is
     pinned.
+
+## Status (2026-10-21)
+
+`rwgpu-v0.1.0` was published by CI (archive SHA-256
+`b30644d1a92b6088813917ad69cbed4cecf0b8d427c1fd62ba4f465f89592956`, matching the hash CI
+printed and a local download). `sources.lock` pins it without `placeholder`, and
+`DEFAULT_RENDERER` is `wgpu` (D5, §10).

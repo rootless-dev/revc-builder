@@ -8,10 +8,10 @@ on your Mac. It is a small desktop app: you point it at your game folder, and it
 the [reVC](https://github.com/mrxenginner/reVC) source code, compiles it on your Mac and
 installs `reVC.app`. You don't need to open the Terminal.
 
-The game renders through librw's OpenGL 3 backend. It runs natively on Apple silicon and
-on Intel Macs (Intel is expected to work but is not tested). A second renderer, written in
-Rust on [wgpu](https://wgpu.rs) (Metal on macOS), is available to developers with
-`--renderer wgpu`; see [The wgpu renderer](#the-wgpu-renderer).
+The game renders through a renderer written in Rust on [wgpu](https://wgpu.rs), which uses
+Metal on macOS; see [The wgpu renderer](#the-wgpu-renderer). It runs natively on Apple
+silicon and on Intel Macs (Intel is expected to work but is not tested). librw's original
+OpenGL 3 backend remains available to developers with `--renderer gl3`.
 
 ## Screenshots
 
@@ -155,7 +155,8 @@ installed app still reads the real `~/Library/Application Support/reVC/reVC.ini`
 
 ### The wgpu renderer
 
-`--renderer wgpu` builds reVC with a new librw platform, `WGPU`, instead of OpenGL 3. A thin
+reVC is built with a new librw platform, `WGPU`, by default (`--renderer gl3` builds with
+librw's OpenGL 3 backend instead, as a reference and fallback). A thin
 C++ driver (`renderers/wgpu/librw/files/src/wgpu`, adapted from librw's OpenGL 3 backend)
 forwards librw's rendering calls over a C ABI (`renderer/include/rwgpu.h`) to a Rust
 library (`renderer/rwgpu`) that renders with wgpu. reVC's game code is unchanged apart from
@@ -163,9 +164,9 @@ small patches (`renderers/wgpu/revc/patches`). The design is in
 `docs/superpowers/specs/2026-10-21-phase2-wgpu-renderer-design.md`.
 
 Users never build Rust: CI builds the library as a universal static library and publishes
-it on releases tagged `rwgpu-v<version>`, and `sources.lock` pins its URL and SHA-256. Until
-the first such release exists, the lock entry is a placeholder and a wgpu build needs a
-locally built library:
+it on releases tagged `rwgpu-v<version>`, and `sources.lock` pins its URL and SHA-256. The
+Builder downloads that archive and checks its hash like every other pinned source. To try
+a renderer change, build the library locally and point the Builder at it:
 
 ```sh
 renderer/build-universal.sh                     # needs rustup; the toolchain is pinned
@@ -279,8 +280,9 @@ The workflow refuses a tag that does not match the version in `pyproject.toml`.
 
 To publish a renderer version, set `version` in `renderer/rwgpu/Cargo.toml`, commit, and
 push the tag `rwgpu-v<version>`. When the release exists, download its archive, put its
-URL and SHA-256 (`shasum -a 256`) into the `rwgpu` entry of `sources.lock`, drop
-`placeholder = true`, and commit before tagging the next Builder release.
+URL and SHA-256 (`shasum -a 256`) into the `rwgpu` entry of `sources.lock`, and commit
+before tagging the next Builder release. (An entry with `placeholder = true` is never
+downloaded; it only exists while no release does.)
 
 ### Changing a pin
 

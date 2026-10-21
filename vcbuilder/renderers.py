@@ -35,7 +35,7 @@ RENDERERS = {
 }
 
 #: The renderer the GUI builds and the CLI uses without --renderer (design D5, section 10).
-DEFAULT_RENDERER = "gl3"
+DEFAULT_RENDERER = "wgpu"
 
 
 def get(name: str) -> Renderer:

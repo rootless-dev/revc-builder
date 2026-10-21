@@ -17,6 +17,7 @@ from vcbuilder.paths import Locations
 from vcbuilder.platform.base import Platform, ToolsStatus
 from vcbuilder.platform.macos import MacOSPlatform
 from vcbuilder.session import BuildSession
+from vcbuilder.renderers import DEFAULT_RENDERER
 
 
 def test_current_is_macos_on_darwin(monkeypatch):
@@ -134,12 +135,12 @@ def test_the_pipeline_runs_against_a_fake_platform(tmp_path):
     assert fake.calls == ["tools_present", "check_tools"]
 
     # Stages 6 and 7 (3 to 5 need the network and a compiler): a "built" app in the cache.
-    make_tree(fake.built_app(locations.revc_build_for("gl3")), ["Contents/reVC"], content=b"fake binary")
+    make_tree(fake.built_app(locations.revc_build_for(DEFAULT_RENDERER)), ["Contents/reVC"], content=b"fake binary")
     second = session.build(game, start="verify")
     assert second.succeeded, second.error
 
     assert "verify_app reVC.fakeapp" in fake.calls
-    assert "verify_renderer gl3" in fake.calls
+    assert f"verify_renderer {DEFAULT_RENDERER}" in fake.calls
     assert session.installed_app == home / "fake-apps" / "reVC.fakeapp"
     assert (session.installed_app / "Contents" / "reVC").read_bytes() == b"fake binary"
     assert session.game_data == home / "fake-data" / "game"

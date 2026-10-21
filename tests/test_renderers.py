@@ -84,11 +84,12 @@ def test_archives_for_filters_by_renderer_and_platform():
     assert lock.renderer_library("gl3", "macos") is None
 
 
-def test_the_repository_lock_pins_a_placeholder_renderer_for_macos():
+def test_the_repository_lock_pins_the_published_renderer_for_macos():
     lock = load_lock(lock_path())
     library = lock.renderer_library("wgpu", MacOSPlatform.lock_platform)
     assert library is not None and library.name == "rwgpu"
-    assert library.placeholder and library.sha256 == "0" * 64
+    assert not library.placeholder and library.sha256 != "0" * 64
+    assert f"/releases/download/rwgpu-v{library.version}/" in library.urls[0]
     assert library.urls[0].endswith(f"rwgpu-{library.version}-macos-universal.tar.gz")
 
 
@@ -123,7 +124,7 @@ def test_fetch_plan_for_gl3_never_needs_the_library():
 
 def test_known_renderers_and_default():
     assert set(renderers.RENDERERS) == {"gl3", "wgpu"}
-    assert renderers.DEFAULT_RENDERER == "gl3"
+    assert renderers.DEFAULT_RENDERER == "wgpu"
     with pytest.raises(ValueError):
         renderers.get("vulkan")
 
@@ -316,7 +317,7 @@ def test_static_library_name():
 
 def test_cli_renderer_options():
     args = build_parser().parse_args(["/game"])
-    assert args.renderer == "gl3" and args.rwgpu_dir is None
+    assert args.renderer == renderers.DEFAULT_RENDERER and args.rwgpu_dir is None
     args = build_parser().parse_args(["/game", "--renderer", "wgpu", "--rwgpu-dir", "/lib"])
     assert args.renderer == "wgpu" and args.rwgpu_dir == Path("/lib")
     with pytest.raises(SystemExit):
